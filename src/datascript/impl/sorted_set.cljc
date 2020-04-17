@@ -22,18 +22,18 @@
     PersistentTreeSet
     IPersistentSortedSet
     (slice
-     ([this from to] (slice this from to (.comparator ^PersistentTreeSet this)))
+     ([this from to] (slice this from to 
+                            (fn[x y] 
+                                (let [cmp (.comparator ^PersistentTreeSet this)]
+                                    (.Compare ^IComparer cmp  x y)))))
      ([this from to cmp]
-         (apply sorted-set-by cmp
-                (filter
-                 (fn [v]
-                     (and (>= 0 (cmp from v))
-                          (>= 0 (cmp v to)))
-                     #_(and (>= 0 (cmp from v))
-                          (<= 0 (cmp to v)))
-                     
-                     )
-                 this))))
+         (let [items (filter
+                      (fn [v]
+                          (and (>= 0 (cmp from v))
+                               (>= 0 (cmp v to))))
+                      this)] 
+             (when-not (empty? items) 
+                 (seq (apply sorted-set-by cmp items))))))
     (rslice
      ([this from to] (rslice this from to c/compare))
      ([this from to cmp] nil)))
