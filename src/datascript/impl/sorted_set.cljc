@@ -29,11 +29,11 @@
      ([this from to cmp]
          (let [items (filter
                       (fn [v]
-                          (and (>= 0 (cmp from v))
-                               (>= 0 (cmp v to))))
+                          (and (or (nil? from) (>= 0 (cmp from v)))
+                               (or (nil? to) (>= 0 (cmp v to)))))
                       this)] 
              (when-not (empty? items) 
-                 (seq (apply sorted-set-by cmp items))))))
+                 (vec (apply sorted-set-by cmp items))))))
     (rslice
      ([this from to] (rslice this from to c/compare))
      ([this from to cmp] nil)))
