@@ -1,12 +1,250 @@
 (ns ^{:doc
       "A B-tree based persistent sorted set. Supports transients, custom comparators, fast iteration, efficient slices (iterator over a part of the set) and reverse slices. Almost a drop-in replacement for [[clojure.core/sorted-set]], the only difference being this one can’t store nil."
       :author "Nikita Prokopov"}
-    me.tonsky.persistent-sorted-set
+    datascript.impl.persistent-sorted-set
     (:refer-clojure :exclude [iter conj disj sorted-set sorted-set-by])
     (:require
-        [me.tonsky.persistent-sorted-set.arrays :as arrays])
-    (:require-macros
-        [me.tonsky.persistent-sorted-set.arrays :as arrays]))
+        [datascript.impl.sorted-set.arrays :as arrays])
+    ;(:use [datascript.impl.protocols])
+    )
+
+(declare slice)
+
+(defmacro caching-hash [coll hash-fn hash-key]
+    (assert (clojure.core/symbol? hash-key) "hash-key is substituted twice")
+    `(let [h# ~hash-key]
+      (if-not (nil? h#)
+          h#
+          (let [h# (~hash-fn ~coll)]
+              (set! ~hash-key h#)
+              h#))))
+
+(defprotocol ICloneable2
+    "Protocol for cloning a value."
+    (^clj -clone [value]
+        "Creates a clone of value."))
+
+(defprotocol ILookup
+    "Protocol for looking up a value in a data structure."
+    (-lookup [o k] [o k not-found]
+        "Use k to look up a value in o. If not-found is supplied and k is not
+         a valid value that can be used for look up, not-found is returned."))
+
+(defprotocol IPrintWithWriter
+    "The old IPrintable protocol's implementation consisted of building a giant
+     list of strings to concatenate.  This involved lots of concat calls,
+     intermediate vectors, and lazy-seqs, and was very slow in some older JS
+     engines.  IPrintWithWriter implements printing via the IWriter protocol, so it
+     be implemented efficiently in terms of e.g. a StringBuffer append."
+    (-pr-writer [o writer opts]))
+
+(defprotocol IMeta
+    "Protocol for accessing the metadata of an object."
+    (;^clj-or-nil
+        -meta [o]
+        "Returns the metadata of object o."))
+
+(defprotocol ICounted
+    "Protocol for adding the ability to count a collection in constant time."
+    (^number -count [coll]
+        "Calculates the count of coll in constant time. Used by cljs.core/count."))
+
+(defprotocol IReversible
+    "Protocol for reversing a seq."
+    (^clj -rseq [coll]
+        "Returns a seq of the items in coll in reversed order."))
+
+(defprotocol IHash
+    "Protocol for adding hashing functionality to a type."
+    (-hash [o]
+        "Returns the hash code of o."))
+
+(defprotocol IEquiv
+    "Protocol for adding value comparison functionality to a type."
+    (^boolean -equiv [o other]
+        "Returns true if o and other are equal, false otherwise."))
+
+(defprotocol IEditableCollection
+    "Protocol for collections which can transformed to transients."
+    (^clj -as-transient [coll]
+        "Returns a new, transient version of the collection, in constant time."))
+
+(defprotocol IEmptyableCollection
+    "Protocol for creating an empty collection."
+    (-empty [coll]
+        "Returns an empty collection of the same category as coll. Used
+         by cljs.core/empty."))
+
+(defprotocol ISet
+    "Protocol for adding set functionality to a collection."
+    (^clj -disjoin [coll v]
+        "Returns a new collection of coll that does not contain v."))
+
+(defprotocol IReduce
+    "Protocol for seq types that can reduce themselves.
+    Called by cljs.core/reduce."
+    (-reduce [coll f] [coll f start]
+        "f should be a function of 2 arguments. If start is not supplied,
+         returns the result of applying f to the first 2 items in coll, then
+         applying f to that result and the 3rd item, etc."))
+
+(defprotocol ITransientCollection
+    "Protocol for adding basic functionality to transient collections."
+    (^clj -conj! [tcoll val]
+        "Adds value val to tcoll and returns tcoll.")
+    (^clj -persistent! [tcoll]
+        "Creates a persistent data structure from tcoll and returns it."))
+
+(defprotocol ISeqable
+    "Protocol for adding the ability to a type to be transformed into a sequence."
+    (;^clj-or-nil
+        -seq [o]
+        "Returns a seq of o, or nil if o is empty."))
+
+(defprotocol ITransientSet
+    "Protocol for adding set functionality to a transient collection."
+    (^clj -disjoin! [tcoll v]
+        "Returns tcoll without v."))
+
+(defprotocol IWithMeta
+    "Protocol for adding metadata to an object."
+    (^clj -with-meta [o meta]
+        "Returns a new object with value of o and metadata meta added to it."))
+
+(defprotocol ICollection
+    "Protocol for adding to a collection."
+    (^clj -conj [coll o]
+        "Returns a new collection of coll with o added to it. The new item
+         should be added to the most efficient place, e.g.
+         (conj [1 2 3 4] 5) => [1 2 3 4 5]
+         (conj '(2 3 4 5) 1) => '(1 2 3 4 5)"))
+
+(defprotocol IFn
+    "Protocol for adding the ability to invoke an object as a function.
+    For example, a vector can also be used to look up a value:
+    ([1 2 3 4] 1) => 2"
+    (-invoke
+        [this]
+        [this a]
+        [this a b]
+        [this a b c]
+        [this a b c d]
+        [this a b c d e]
+        [this a b c d e f]
+        [this a b c d e f g]
+        [this a b c d e f g h]
+        [this a b c d e f g h i]
+        [this a b c d e f g h i j]
+        [this a b c d e f g h i j k]
+        [this a b c d e f g h i j k l]
+        [this a b c d e f g h i j k l m]
+        [this a b c d e f g h i j k l m n]
+        ;        [this a b c d e f g h i j k l m n o]
+        ;        [this a b c d e f g h i j k l m n o p]
+        ;        [this a b c d e f g h i j k l m n o p q]
+        ;        [this a b c d e f g h i j k l m n o p q r]
+        ;        [this a b c d e f g h i j k l m n o p q r s]
+        ;        [this a b c d e f g h i j k l m n o p q r s rest]
+        ;        [this a b c d e f g h i j k l m n o p q r s t rest]
+        ))
+
+(defprotocol IChunk
+    "Protocol for accessing the items of a chunk."
+    (-drop-first [coll]
+        "Return a new chunk of coll with the first item removed."))
+
+(defprotocol IIndexed
+    "Protocol for collections to provide indexed-based access to their items."
+    (-nth [coll n] [coll n not-found]
+        "Returns the value at the index n in the collection coll.
+         Returns not-found if index n is out of bounds and not-found is supplied."))
+
+(defprotocol INext
+    "Protocol for accessing the next items of a collection."
+    (;^clj-or-nil
+        -next [coll]
+        "Returns a new collection of coll without the first item. In contrast to
+         rest, it should return nil if there are no more items, e.g.
+         (next []) => nil
+         (next nil) => nil"))
+
+(defprotocol ISeq
+    "Protocol for collections to provide access to their items as sequences."
+    (-first [coll]
+        "Returns the first item in the collection coll. Used by cljs.core/first.")
+    (^clj -rest [coll]
+        "Returns a new collection of coll without the first item. It should
+         always return a seq, e.g.
+         (rest []) => ()
+         (rest nil) => ()"))
+
+(defprotocol ISequential
+    "Marker interface indicating a persistent collection of sequential items")
+
+(defprotocol IChunkedSeq
+    "Protocol for accessing a collection as sequential chunks."
+    (-chunked-first [coll]
+        "Returns the first chunk in coll.")
+    (-chunked-rest [coll]
+        "Return a new collection of coll with the first chunk removed."))
+
+(defprotocol IChunkedNext
+    "Protocol for accessing the chunks of a collection."
+    (-chunked-next [coll]
+        "Returns a new collection of coll without the first chunk."))
+
+(defprotocol IWriter
+    "Protocol for writing. Currently only implemented by StringBufferWriter."
+    (-write [writer s]
+        "Writes s with writer and returns the result.")
+    (-flush [writer]
+        "Flush writer."))
+
+(defprotocol IPrintWithWriter
+    "The old IPrintable protocol's implementation consisted of building a giant
+     list of strings to concatenate.  This involved lots of concat calls,
+     intermediate vectors, and lazy-seqs, and was very slow in some older JS
+     engines.  IPrintWithWriter implements printing via the IWriter protocol, so it
+     be implemented efficiently in terms of e.g. a StringBuffer append."
+    (-pr-writer [o writer opts]))
+
+(defn pr-sequential-writer [writer print-one begin sep end opts coll]
+    (binding [*print-level* (when-not (nil? *print-level*) (dec *print-level*))]
+        (if (and (not (nil? *print-level*)) (neg? *print-level*))
+            (-write writer "#")
+            (do
+                (-write writer begin)
+                (if (zero? (:print-length opts))
+                    (when (seq coll)
+                        (-write writer (or (:more-marker opts) "...")))
+                    (do
+                        (when (seq coll)
+                            (print-one (first coll) writer opts))
+                        (loop [coll (next coll) n (dec (:print-length opts))]
+                            (if (and coll (or (nil? n) (not (zero? n))))
+                                (do
+                                    (-write writer sep)
+                                    (print-one (first coll) writer opts)
+                                    (recur (next coll) (dec n)))
+                                (when (and (seq coll) (zero? n))
+                                    (-write writer sep)
+                                    (-write writer (or (:more-marker opts) "...")))))))
+                (-write writer end)))))
+
+(defn- equiv-sequential
+    "Assumes x is sequential. Returns true if x equals y, otherwise
+    returns false."
+    [x y]
+    (boolean
+     (when (sequential? y)
+         (if (and (counted? x) (counted? y)
+                  (not (== (count x) (count y))))
+             false
+             (loop [xs (seq x) ys (seq y)]
+                 (cond (nil? xs) (nil? ys)
+                     (nil? ys) false
+                     (= (first xs) (first ys)) (recur (next xs) (next ys))
+                     :else false))))))
 
 
 ; B+ tree
@@ -338,10 +576,10 @@
 (def ^:private ^:const uninitialized-hash nil)
 
 (deftype BTSet [root shift cnt comparator meta ^:mutable _hash]
-    Object
-    (toString [this] (pr-str* this))
+    ;    Object
+    ;    (toString [this] (pr-str* this))
 
-    ICloneable
+    ICloneable2
     (-clone [_] (BTSet. root shift cnt comparator meta _hash))
 
     IWithMeta
@@ -361,7 +599,11 @@
          (every? #(contains? this %) other)))
 
     IHash
-    (-hash [this] (caching-hash this hash-unordered-coll _hash))
+    (-hash [this]
+        ;(caching-hash this hash-unordered-coll _hash)
+        (hash-unordered-coll this)
+
+        )
 
     ICollection
     (-conj [this key] (conj this key comparator))
@@ -416,7 +658,26 @@
 
     IPrintWithWriter
     (-pr-writer [this writer opts]
-        (pr-sequential-writer writer pr-writer "#{" " " "}" opts (seq this))))
+        ;        (pr-sequential-writer writer pr-writer "#{" " " "}" opts (seq this))
+        )
+
+    clojure.lang.IPersistentCollection
+    (count [this] (-count this))
+    (cons [this x] (-conj this x))
+    (empty [this] "empty")
+    (equiv [this x] "equiv")
+
+    clojure.lang.Seqable
+    (seq [this] (slice this nil nil))
+
+
+    ;    PPersistentCollection
+    ;    (test [this] 1)
+    ;    (count [this] 1 #_(-count this))
+    ;    (cons [this x] 1 #_(-conj this x))
+    ;    (empty [this] (-empty this))
+    ;    (equiv [this x] (-equiv this x))
+    )
 
 (defn- keys-for [set path]
     (loop [level (.-shift set)
@@ -530,8 +791,11 @@
     IChunk
     (-drop-first [this]
         (if (== off end)
-            (throw (js/Error. "-drop-first of empty chunk"))
-            (ArrayChunk. arr (inc off) end)))
+            (throw (ex-info "-drop-first of empty chunk" {}))
+            ;            (throw (js/Error. "-drop-first of empty chunk"))
+            (Chunk. arr (inc off) end)
+            ;            (ArrayChunk. arr (inc off) end)
+            ))
 
     IReduce
     (-reduce [this f]
@@ -634,12 +898,30 @@
         (when keys
             (riter set (prev-path set left) (prev-path set right))))
 
-    Object
-    (toString [this] (pr-str* this))
+    ;    Object
+    ;    (toString [this] (pr-str* this))
 
     IPrintWithWriter
     (-pr-writer [this writer opts]
-        (pr-sequential-writer writer pr-writer "(" " " ")" opts (seq this))))
+        ;        (pr-sequential-writer writer pr-writer "(" " " ")" opts (seq this))
+        )
+
+    clojure.lang.ISeq
+    (first [this] (-first this))
+    (next [this] (-next this))
+    (more [this] (-rest this))
+    ;(cons [this x] (throw (ex-info "NoImplement: clojure.lang.ISeq.cons" {})))
+    ;(count [this] (.count set))
+    ;(count [this] (throw (ex-info "Noimplement: clojure.lang.ISeq.count" {})))
+    ;(empty [this] (throw (ex-info "Noimplement: clojure.lang.ISeq.empty" {})))
+    ;(equiv [this x] (throw (ex-info "Noimplement: clojure.lang.ISeq.equiv" {})))
+
+    clojure.lang.Counted
+    (count [this] (-count set))
+
+    clojure.lang.Seqable
+    (seq [this] (-seq this))
+    )
 
 (defn iter [set left right]
     (Iter. set left right (keys-for set left) (path-get left 0)))
@@ -684,12 +966,13 @@
                   new-right (if (== new-right -1) (inc right) new-right)]
                 (iter set new-left new-right))))
 
-    Object
-    (toString [this] (pr-str* this))
+    ;    Object
+    ;    (toString [this] (pr-str* this))
 
     IPrintWithWriter
     (-pr-writer [this writer opts]
-        (pr-sequential-writer writer pr-writer "(" " " ")" opts (seq this))))
+        ;        (pr-sequential-writer writer pr-writer "(" " " ")" opts (seq this))
+        ))
 
 (defn riter [set left right]
     (ReverseIter. set left right (keys-for set right) (path-get right 0)))
