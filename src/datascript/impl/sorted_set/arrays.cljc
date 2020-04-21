@@ -27,7 +27,7 @@
    (defmacro array [& args]
        (let [len (count args)]
            (if (zero? len)
-               'clojure.lang.RT/EMPTY_ARRAY
+               'clojure.lang.RT/EmptyObjectArray
                `(let [arr# (clojure.core/make-array System.Object ~len)]
                  (doto ^{:tag "System.Object"} arr#
                        ~@(map #(list 'aset % (nth args %)) (range len))))))))

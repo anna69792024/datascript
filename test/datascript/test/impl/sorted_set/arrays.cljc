@@ -14,6 +14,7 @@
                  (is (= [1 2 3] arr))
                  (is (= 3 (arrays/aget arr 2)))
                  (is (= 3 (arrays/alength arr)))
+                 (is (= [] (arrays/array)))
                  (is (= [1 2 3] (arrays/array 1 2 3)))
 
                  (let [to       (arrays/make-array 3)
