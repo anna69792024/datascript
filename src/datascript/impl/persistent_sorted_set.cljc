@@ -2,10 +2,10 @@
       "A B-tree based persistent sorted set. Supports transients, custom comparators, fast iteration, efficient slices (iterator over a part of the set) and reverse slices. Almost a drop-in replacement for [[clojure.core/sorted-set]], the only difference being this one can’t store nil."
       :author "Nikita Prokopov"}
     datascript.impl.persistent-sorted-set
-    (:refer-clojure :exclude [iter conj disj sorted-set sorted-set-by])
+    (:refer-clojure :exclude
+                    [iter conj disj sorted-set sorted-set-by])
     (:require [datascript.impl.sorted-set.arrays :as arrays])
     (:use [datascript.impl.protocols]))
-
 
 (defmacro caching-hash [coll hash-fn hash-key]
     (assert (clojure.core/symbol? hash-key) "hash-key is substituted twice")
@@ -28,7 +28,8 @@
                     (do
                         (when (seq coll)
                             (print-one (first coll) writer opts))
-                        (loop [coll (next coll) n (dec (:print-length opts))]
+                        (loop [coll (next coll)
+                               n    (dec (:print-length opts))]
                             (if (and coll (or (nil? n) (not (zero? n))))
                                 (do
                                     (-write writer sep)
@@ -48,11 +49,12 @@
          (if (and (counted? x) (counted? y)
                   (not (== (count x) (count y))))
              false
-             (loop [xs (seq x) ys (seq y)]
-                 (cond (nil? xs) (nil? ys)
-                     (nil? ys) false
+             (loop [xs (seq x)
+                    ys (seq y)]
+                 (cond (nil? xs)               (nil? ys)
+                     (nil? ys)                 false
                      (= (first xs) (first ys)) (recur (next xs) (next ys))
-                     :else false))))))
+                     :else                     false))))))
 
 
 ; B+ tree
@@ -89,10 +91,11 @@
 (def ^:const min-len 16)
 (def ^:const max-len 32)
 (def ^:private ^:const avg-len (arrays/half (+ max-len min-len)))
-(def ^:private ^:const level-shift (->> (range 31 -1 -1)
-                                        (filter #(bit-test max-len %))
-                                        first
-                                        inc))
+(def ^:private ^:const level-shift
+    (->> (range 31 -1 -1)
+         (filter #(bit-test max-len %))
+         first
+         inc))
 (def ^:private ^:const path-mask (dec (bit-shift-left 1 level-shift)))
 (def ^:private ^:const empty-path 0)
 
@@ -144,16 +147,16 @@
 ;; Array operations
 
 (defn- cut-n-splice [arr cut-from cut-to splice-from splice-to xs]
-    (let [xs-l (arrays/alength xs)
-          l1   (- splice-from cut-from)
-          l2   (- cut-to splice-to)
-          l1xs (+ l1 xs-l)
+    (let [xs-l    (arrays/alength xs)
+          l1      (- splice-from cut-from)
+          l2      (- cut-to splice-to)
+          l1xs    (+ l1 xs-l)
           new-arr (arrays/make-array (+ l1 xs-l l2))]
         (arrays/acopy arr cut-from splice-from new-arr 0)
         (arrays/acopy xs 0 xs-l new-arr l1)
         (arrays/acopy arr splice-to cut-to new-arr l1xs)
         new-arr))
-    
+
 (defn- select
     ([arr from]
      (select arr from (arrays/alength arr)))
@@ -178,13 +181,13 @@
           r2      (arrays/make-array r2-l)]
         (if (<= a1-l r1-l)
             (do
-                (arrays/acopy a1 0             a1-l          r1 0)
-                (arrays/acopy a2 0             (- r1-l a1-l) r1 a1-l)
-                (arrays/acopy a2 (- r1-l a1-l) a2-l          r2 0))
+                (arrays/acopy a1 0 a1-l r1 0)
+                (arrays/acopy a2 0 (- r1-l a1-l) r1 a1-l)
+                (arrays/acopy a2 (- r1-l a1-l) a2-l r2 0))
             (do
-                (arrays/acopy a1 0    r1-l r1 0)
+                (arrays/acopy a1 0 r1-l r1 0)
                 (arrays/acopy a1 r1-l a1-l r2 0)
-                (arrays/acopy a2 0    a2-l r2 (- a1-l r1-l))))
+                (arrays/acopy a2 0 a2-l r2 (- a1-l r1-l))))
         (arrays/array r1 r2)))
 
 (defn- ^boolean eq-arr [cmp a1 a1-from a1-to a2 a2-from a2-to]
@@ -196,9 +199,11 @@
                  (== i len)
                  true
 
-                 (not (== 0 (cmp
-                             (arrays/aget a1 (+ i a1-from))
-                             (arrays/aget a2 (+ i a2-from)))))
+                 (not
+                     (== 0
+                         (cmp
+                          (arrays/aget a1 (+ i a1-from))
+                          (arrays/aget a2 (+ i a2-from)))))
                  false
 
                  :else
@@ -264,8 +269,9 @@
         (return-array left (node-merge node right))
 
         ;; left has fewer nodes, redestribute with it
-        (and left (or (nil? right)
-                      (< (node-len left) (node-len right))))
+        (and left
+             (or (nil? right)
+                 (< (node-len left) (node-len right))))
         (let [nodes (node-merge-n-split left node)]
             (return-array (arrays/aget nodes 0) (arrays/aget nodes 1) right))
 
@@ -287,7 +293,7 @@
                (arrays/aconcat pointers (.-pointers next))))
 
     (node-merge-n-split [_ next]
-        (let [ks (merge-n-split keys     (.-keys next))
+        (let [ks (merge-n-split keys (.-keys next))
               ps (merge-n-split pointers (.-pointers next))]
             (return-array (Node. (arrays/aget ks 0) (arrays/aget ps 0))
                           (Node. (arrays/aget ks 1) (arrays/aget ps 1)))))
@@ -301,17 +307,17 @@
         (let [idx   (binary-search-l cmp keys (- (arrays/alength keys) 2) key)
               nodes (node-conj (arrays/aget pointers idx) cmp key)]
             (when nodes
-                (let [new-keys     (check-n-splice cmp keys     idx (inc idx) (arrays/amap node-lim-key nodes))
-                      new-pointers (splice             pointers idx (inc idx) nodes)]
+                (let [new-keys     (check-n-splice cmp keys idx (inc idx) (arrays/amap node-lim-key nodes))
+                      new-pointers (splice pointers idx (inc idx) nodes)]
                     (if (<= (arrays/alength new-pointers) max-len)
                         ;; ok as is
                         (arrays/array (Node. new-keys new-pointers))
                         ;; gotta split it up
                         (let [middle  (arrays/half (arrays/alength new-pointers))]
                             (arrays/array
-                             (Node. (select new-keys     0 middle)
+                             (Node. (select new-keys 0 middle)
                                     (select new-pointers 0 middle))
-                             (Node. (select new-keys     middle)
+                             (Node. (select new-keys middle)
                                     (select new-pointers middle)))))))))
 
     (node-disj [_ cmp key root? left right]
@@ -323,11 +329,11 @@
                       right-child (when (< (inc idx) (arrays/alength pointers))
                                       (arrays/aget pointers (inc idx)))
                       disjned     (node-disj child cmp key false left-child right-child)]
-                    (when disjned     ;; short-circuit, key not here
-                        (let [left-idx     (if left-child  (dec idx) idx)
+                    (when disjned ;; short-circuit, key not here
+                        (let [left-idx     (if left-child (dec idx) idx)
                               right-idx    (if right-child (+ 2 idx) (+ 1 idx))
-                              new-keys     (check-n-splice cmp keys     left-idx right-idx (arrays/amap node-lim-key disjned))
-                              new-pointers (splice             pointers left-idx right-idx disjned)]
+                              new-keys     (check-n-splice cmp keys left-idx right-idx (arrays/amap node-lim-key disjned))
+                              new-pointers (splice pointers left-idx right-idx disjned)]
                             (rotate (Node. new-keys new-pointers) root? left right))))))))
 
 (deftype Leaf [keys]
@@ -405,7 +411,8 @@
     (-meta [_] meta)
 
     IEmptyableCollection
-    (-empty [_] (BTSet. (Leaf. (arrays/array)) 0 0 comparator meta uninitialized-hash))
+    (-empty [_]
+        (BTSet. (Leaf. (arrays/array)) 0 0 comparator meta uninitialized-hash))
 
     IEquiv
     (-equiv [this other]
@@ -417,9 +424,7 @@
     IHash
     (-hash [this]
         ;(caching-hash this hash-unordered-coll _hash)
-        (hash-unordered-coll this)
-
-        )
+        (hash-unordered-coll this))
 
     ICollection
     (-conj [this key] (conj this key comparator))
@@ -619,7 +624,8 @@
             (f)
             (-reduce (-drop-first this) f (aget arr off))))
     (-reduce [this f start]
-        (loop [val start, n off]
+        (loop [val start,
+               n   off]
             (if (< n end)
                 (let [val' (f val (aget arr n))]
                     (if (reduced? val')
@@ -736,8 +742,7 @@
     (count [this] (-count set))
 
     clojure.lang.Seqable
-    (seq [this] (-seq this))
-    )
+    (seq [this] (-seq this)))
 
 (defn iter [set left right]
     (Iter. set left right (keys-for set left) (path-get left 0)))
@@ -761,7 +766,7 @@
         (when keys
             (arrays/aget keys idx)))
 
-    (-rest [this]  (or (-next this) ()))
+    (-rest [this] (or (-next this) ()))
 
     INext
     (-next [this]
@@ -811,10 +816,10 @@
 
 (defn- distance [set path-l path-r]
     (cond
-        (== path-l path-r) 0
-        (== (inc path-l) path-r) 1
+        (== path-l path-r)                 0
+        (== (inc path-l) path-r)           1
         (== (next-path set path-l) path-r) 1
-        :else (-distance (.-root set) path-l path-r (.-shift set))))
+        :else                              (-distance (.-root set) path-l path-r (.-shift set))))
 
 (defn est-count [iter]
     (distance (.-set iter) (.-left iter) (.-right iter)))
@@ -1010,13 +1015,14 @@
                       (arr-partition-approx min-len max-len)
                       (arr-map-inplace #(Leaf. %)))]
         (loop [current-level leaves
-               shift 0]
+               shift         0]
             (case (count current-level)
                 0 (BTSet. (Leaf. (arrays/array)) 0 0 cmp nil uninitialized-hash)
                 1 (BTSet. (first current-level) shift (arrays/alength arr) cmp nil uninitialized-hash)
-                (recur (->> current-level
-                            (arr-partition-approx min-len max-len)
-                            (arr-map-inplace #(Node. (arrays/amap node-lim-key %) %)))
+                (recur
+                    (->> current-level
+                         (arr-partition-approx min-len max-len)
+                         (arr-map-inplace #(Node. (arrays/amap node-lim-key %) %)))
                     (+ shift level-shift))))))
 
 
@@ -1035,3 +1041,4 @@
 (defn sorted-set
     ([] (sorted-set-by compare))
     ([& keys] (from-sequential compare keys)))
+    
