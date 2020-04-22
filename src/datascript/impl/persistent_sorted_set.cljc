@@ -484,7 +484,6 @@
     clojure.lang.IPersistentCollection
     (count [this] (-count this))
     (cons [this x] (-conj this x))
-    ;    (empty [this] "empty")
     (equiv [this x] (-equiv this x))
 
     clojure.lang.Seqable
