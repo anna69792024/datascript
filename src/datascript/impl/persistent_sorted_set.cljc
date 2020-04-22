@@ -157,9 +157,9 @@
         (arrays/acopy arr splice-to cut-to new-arr l1xs)
         new-arr))
 
-(defn- select
+(defn- array-slice
     ([arr from]
-     (select arr from (arrays/alength arr)))
+     (array-slice arr from (arrays/alength arr)))
     ([arr from to]
      (let [new-arr (arrays/make-array (- to from))]
          (arrays/acopy arr from to new-arr 0)
@@ -200,10 +200,10 @@
                  true
 
                  (not
-                     (== 0
-                         (cmp
-                          (arrays/aget a1 (+ i a1-from))
-                          (arrays/aget a2 (+ i a2-from)))))
+                  (== 0
+                      (cmp
+                       (arrays/aget a1 (+ i a1-from))
+                       (arrays/aget a2 (+ i a2-from)))))
                  false
 
                  :else
@@ -315,10 +315,10 @@
                         ;; gotta split it up
                         (let [middle  (arrays/half (arrays/alength new-pointers))]
                             (arrays/array
-                             (Node. (select new-keys 0 middle)
-                                    (select new-pointers 0 middle))
-                             (Node. (select new-keys middle)
-                                    (select new-pointers middle)))))))))
+                             (Node. (array-slice new-keys 0 middle)
+                                    (array-slice new-pointers 0 middle))
+                             (Node. (array-slice new-keys middle)
+                                    (array-slice new-pointers middle)))))))))
 
     (node-disj [_ cmp key root? left right]
         (let [idx (lookup-range cmp keys key)]
@@ -374,12 +374,12 @@
                     (if (> idx middle)
                         ;; new key goes to the second half
                         (arrays/array
-                         (Leaf. (select keys 0 middle))
+                         (Leaf. (array-slice keys 0 middle))
                          (Leaf. (cut-n-splice keys middle keys-l idx idx (arrays/array key))))
                         ;; new key goes to the first half
                         (arrays/array
                          (Leaf. (cut-n-splice keys 0 middle idx idx (arrays/array key)))
-                         (Leaf. (select keys middle keys-l)))))
+                         (Leaf. (array-slice keys middle keys-l)))))
 
                 ;; ok as is
                 :else
@@ -401,7 +401,7 @@
     ;    Object
     ;    (toString [this] (pr-str* this))
 
-    ICloneable2
+    ICloneableProtocol
     (-clone [_] (BTSet. root shift cnt comparator meta _hash))
 
     IWithMeta
@@ -479,33 +479,26 @@
 
     IPrintWithWriter
     (-pr-writer [this writer opts]
-        ;        (pr-sequential-writer writer pr-writer "#{" " " "}" opts (seq this))
-        )
+        #_(pr-sequential-writer writer pr-writer "#{" " " "}" opts (seq this)))
 
     clojure.lang.IPersistentCollection
     (count [this] (-count this))
     (cons [this x] (-conj this x))
-    (empty [this] "empty")
-    (equiv [this x] "equiv")
+    (equiv [this x] (-equiv this x))
 
     clojure.lang.Seqable
     (seq [this] (-seq this))
 
-
-    ;    PPersistentCollection
-    ;    (test [this] 1)
-    ;    (count [this] 1 #_(-count this))
-    ;    (cons [this x] 1 #_(-conj this x))
-    ;    (empty [this] (-empty this))
-    ;    (equiv [this x] (-equiv this x))
-    
     clojure.lang.IReduce
     (reduce [this f] (-reduce this f))
     (reduce [this f start] (-reduce this f start))
 
     clojure.lang.Reversible
     (rseq [this] (-rseq this))
-    )
+
+    clojure.lang.IPersistentSet
+    (disjoin [this key] (-disjoin this key))
+    (contains [this key] (-lookup this key)))
 
 (defn- keys-for [set path]
     (loop [level (.-shift set)
@@ -604,7 +597,10 @@
             (iter set left right))))
 
 ;; replace with cljs.core/ArrayChunk after https://dev.clojure.org/jira/browse/CLJS-2470
-(deftype Chunk [arr off end]
+(deftype
+    Chunk
+    [arr off end]
+
     ICounted
     (-count [_] (- end off))
 
@@ -620,10 +616,9 @@
     (-drop-first [this]
         (if (== off end)
             (throw (ex-info "-drop-first of empty chunk" {}))
-            ;            (throw (js/Error. "-drop-first of empty chunk"))
+            #_(throw (js/Error. "-drop-first of empty chunk"))
             (Chunk. arr (inc off) end)
-            ;            (ArrayChunk. arr (inc off) end)
-            ))
+            #_(ArrayChunk. arr (inc off) end)))
 
     IReduce
     (-reduce [this f]
@@ -732,22 +727,17 @@
 
     IPrintWithWriter
     (-pr-writer [this writer opts]
-        ;        (pr-sequential-writer writer pr-writer "(" " " ")" opts (seq this))
-        )
+        #_(pr-sequential-writer writer pr-writer "(" " " ")" opts (seq this)))
 
     clojure.lang.ISeq
     (first [this] (-first this))
     (next [this] (-next this))
     (more [this] (-rest this))
-    ;(cons [this x] (throw (ex-info "NoImplement: clojure.lang.ISeq.cons" {})))
-    ;(count [this] (.count set))
-    ;(count [this] (throw (ex-info "Noimplement: clojure.lang.ISeq.count" {})))
-    ;(empty [this] (throw (ex-info "Noimplement: clojure.lang.ISeq.empty" {})))
     (equiv [this x] (-equiv this x))
 
     clojure.lang.Seqable
     (seq [this] (-seq this))
-    
+
     clojure.lang.Sequential
 
     clojure.lang.Reversible
@@ -755,8 +745,7 @@
 
     clojure.lang.IReduce
     (reduce [this f] (-reduce this f))
-    (reduce [this f start] (-reduce this f start))
-    )
+    (reduce [this f start] (-reduce this f start)))
 
 (defn iter [set left right]
     (Iter. set left right (keys-for set left) (path-get left 0)))
@@ -806,18 +795,12 @@
 
     IPrintWithWriter
     (-pr-writer [this writer opts]
-        ;        (pr-sequential-writer writer pr-writer "(" " " ")" opts (seq this))
-        )
-
-
+        #_(pr-sequential-writer writer pr-writer "(" " " ")" opts (seq this)))
+    
     clojure.lang.ISeq
     (first [this] (-first this))
     (next [this] (-next this))
     (more [this] (-rest this))
-    ;(cons [this x] (throw (ex-info "NoImplement: clojure.lang.ISeq.cons" {})))
-    ;(count [this] (.count set))
-    ;(count [this] (throw (ex-info "Noimplement: clojure.lang.ISeq.count" {})))
-    ;(empty [this] (throw (ex-info "Noimplement: clojure.lang.ISeq.empty" {})))
     (equiv [this x] (-equiv this x))
 
     clojure.lang.Seqable
@@ -926,14 +909,14 @@
                 (let [rest (- len pos)]
                     (cond
                         (<= rest max-len)
-                        (conj! acc (select arr pos))
+                        (conj! acc (array-slice arr pos))
                         (>= rest (+ chunk-len min-len))
                         (do
-                            (conj! acc (select arr pos (+ pos chunk-len)))
+                            (conj! acc (array-slice arr pos (+ pos chunk-len)))
                             (recur (+ pos chunk-len)))
                         :else
                         (let [piece-len (arrays/half rest)]
-                            (conj! acc (select arr pos (+ pos piece-len)))
+                            (conj! acc (array-slice arr pos (+ pos piece-len)))
                             (recur (+ pos piece-len)))))))
         (to-array (persistent! acc))))
 
