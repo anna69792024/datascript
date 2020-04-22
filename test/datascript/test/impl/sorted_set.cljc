@@ -32,12 +32,6 @@
       (< c0 0) -1
       (> c0 0)  1)))
 
-(def e0 (set/sorted-set-by cmp-s))
-(def ds [[:a :b] [:b :x] [:b :q] [:a :d]])
-(def e1 (reduce conj e0 ds))
-
-
-
 (deftest semantic-test-btset-by
   (let [e0 (set/sorted-set-by cmp-s)
         ds [[:a :b] [:b :x] [:b :q] [:a :d]]
@@ -276,14 +270,20 @@
 
 
 (defn ireduce
-  ([f coll] (#?(:clj .reduce :cljs -reduce) ^IReduce coll f))
-  ([f val coll] (#?(:clj .reduce :cljs -reduce) ^IReduce coll f val)))
+  ([f coll] (#?(:clj .reduce 
+                :cljs -reduce
+                :cljr .reduce) ^IReduce coll f))
+  ([f val coll] (#?(:clj .reduce 
+                    :cljs -reduce
+                    :cljr .reduce) ^IReduce coll f val)))
 
 
 (defn reduce-chunked [f val coll]
   (if-some [s (seq coll)]
     (if (chunked-seq? s)
-      (recur f (#?(:clj .reduce :cljs -reduce) (chunk-first s) f val) (chunk-next s))
+      (recur f (#?(:clj .reduce 
+                   :cljs -reduce
+                   :cljr .reduce) (chunk-first s) f val) (chunk-next s))
       (recur f (f val (first s)) (next s)))
     val))
 
