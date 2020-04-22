@@ -736,13 +736,15 @@
     ;(count [this] (.count set))
     ;(count [this] (throw (ex-info "Noimplement: clojure.lang.ISeq.count" {})))
     ;(empty [this] (throw (ex-info "Noimplement: clojure.lang.ISeq.empty" {})))
-    ;(equiv [this x] (throw (ex-info "Noimplement: clojure.lang.ISeq.equiv" {})))
-
-    clojure.lang.Counted
-    (count [this] (-count set))
+    (equiv [this x] (-equiv this x))
 
     clojure.lang.Seqable
-    (seq [this] (-seq this)))
+    (seq [this] (-seq this))
+    
+    clojure.lang.Sequential
+
+    clojure.lang.Reversible
+    (rseq [this] (-rseq this)))
 
 (defn iter [set left right]
     (Iter. set left right (keys-for set left) (path-get left 0)))
@@ -793,7 +795,26 @@
     IPrintWithWriter
     (-pr-writer [this writer opts]
         ;        (pr-sequential-writer writer pr-writer "(" " " ")" opts (seq this))
-        ))
+        )
+
+
+    clojure.lang.ISeq
+    (first [this] (-first this))
+    (next [this] (-next this))
+    (more [this] (-rest this))
+    ;(cons [this x] (throw (ex-info "NoImplement: clojure.lang.ISeq.cons" {})))
+    ;(count [this] (.count set))
+    ;(count [this] (throw (ex-info "Noimplement: clojure.lang.ISeq.count" {})))
+    ;(empty [this] (throw (ex-info "Noimplement: clojure.lang.ISeq.empty" {})))
+    (equiv [this x] (-equiv this x))
+
+    clojure.lang.Seqable
+    (seq [this] (-seq this))
+
+    clojure.lang.Sequential
+
+    clojure.lang.Reversible
+    (rseq [this] (-rseq this)))
 
 (defn riter [set left right]
     (ReverseIter. set left right (keys-for set right) (path-get right 0)))
