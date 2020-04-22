@@ -154,6 +154,14 @@
         (arrays/acopy xs 0 xs-l new-arr l1)
         (arrays/acopy arr splice-to cut-to new-arr l1xs)
         new-arr))
+    
+(defn- select
+    ([arr from]
+     (select arr from (arrays/alength arr)))
+    ([arr from to]
+     (let [new-arr (arrays/make-array (- to from))]
+         (arrays/acopy arr from to new-arr 0)
+         new-arr)))
 
 (defn- splice [arr splice-from splice-to xs]
     (cut-n-splice arr 0 (arrays/alength arr) splice-from splice-to xs))
@@ -302,10 +310,10 @@
                         ;; gotta split it up
                         (let [middle  (arrays/half (arrays/alength new-pointers))]
                             (arrays/array
-                             (Node. (.slice new-keys     0 middle)
-                                    (.slice new-pointers 0 middle))
-                             (Node. (.slice new-keys     middle)
-                                    (.slice new-pointers middle)))))))))
+                             (Node. (select new-keys     0 middle)
+                                    (select new-pointers 0 middle))
+                             (Node. (select new-keys     middle)
+                                    (select new-pointers middle)))))))))
 
     (node-disj [_ cmp key root? left right]
         (let [idx (lookup-range cmp keys key)]
@@ -361,12 +369,12 @@
                     (if (> idx middle)
                         ;; new key goes to the second half
                         (arrays/array
-                         (Leaf. (.slice keys 0 middle))
+                         (Leaf. (select keys 0 middle))
                          (Leaf. (cut-n-splice keys middle keys-l idx idx (arrays/array key))))
                         ;; new key goes to the first half
                         (arrays/array
                          (Leaf. (cut-n-splice keys 0 middle idx idx (arrays/array key)))
-                         (Leaf. (.slice keys middle keys-l)))))
+                         (Leaf. (select keys middle keys-l)))))
 
                 ;; ok as is
                 :else
@@ -881,14 +889,14 @@
                 (let [rest (- len pos)]
                     (cond
                         (<= rest max-len)
-                        (conj! acc (.slice arr pos))
+                        (conj! acc (select arr pos))
                         (>= rest (+ chunk-len min-len))
                         (do
-                            (conj! acc (.slice arr pos (+ pos chunk-len)))
+                            (conj! acc (select arr pos (+ pos chunk-len)))
                             (recur (+ pos chunk-len)))
                         :else
                         (let [piece-len (arrays/half rest)]
-                            (conj! acc (.slice arr pos (+ pos piece-len)))
+                            (conj! acc (select arr pos (+ pos piece-len)))
                             (recur (+ pos piece-len)))))))
         (to-array (persistent! acc))))
 
