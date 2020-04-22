@@ -1,7 +1,6 @@
 (ns ^:no-doc datascript.impl.sorted-set.arrays
     (:refer-clojure :exclude
-                    [make-array into-array array amap aget aset alength array? aclone])
-    #?(:cljr (:import [System Array])))
+                    [make-array into-array array amap aget aset alength array? aclone]))
 
 #?(:cljr
    (defn make-array ^{:tag "System.Object[]"} [size]
