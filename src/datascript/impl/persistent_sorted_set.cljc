@@ -485,8 +485,8 @@
     clojure.lang.IPersistentCollection
     (count [this] (-count this))
     (cons [this x] (-conj this x))
-    (empty [this] "empty")
-    (equiv [this x] "equiv")
+;    (empty [this] "empty")
+    (equiv [this x] (-equiv this x))
 
     clojure.lang.Seqable
     (seq [this] (-seq this))
@@ -505,6 +505,10 @@
 
     clojure.lang.Reversible
     (rseq [this] (-rseq this))
+    
+    clojure.lang.IPersistentSet
+    (disjoin [this key] (-disjoin this key))
+    (contains [this key] (-lookup this key))
     )
 
 (defn- keys-for [set path]
