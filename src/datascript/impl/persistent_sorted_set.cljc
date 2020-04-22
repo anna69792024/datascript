@@ -489,7 +489,7 @@
     (equiv [this x] "equiv")
 
     clojure.lang.Seqable
-    (seq [this] (slice this nil nil))
+    (seq [this] (-seq this))
 
 
     ;    PPersistentCollection
@@ -498,6 +498,13 @@
     ;    (cons [this x] 1 #_(-conj this x))
     ;    (empty [this] (-empty this))
     ;    (equiv [this x] (-equiv this x))
+    
+    clojure.lang.IReduce
+    (reduce [this f] (-reduce this f))
+    (reduce [this f start] (-reduce this f start))
+
+    clojure.lang.Reversible
+    (rseq [this] (-rseq this))
     )
 
 (defn- keys-for [set path]
@@ -744,7 +751,12 @@
     clojure.lang.Sequential
 
     clojure.lang.Reversible
-    (rseq [this] (-rseq this)))
+    (rseq [this] (-rseq this))
+
+    clojure.lang.IReduce
+    (reduce [this f] (-reduce this f))
+    (reduce [this f start] (-reduce this f start))
+    )
 
 (defn iter [set left right]
     (Iter. set left right (keys-for set left) (path-get left 0)))
