@@ -6,7 +6,6 @@
     (:require [datascript.impl.sorted-set.arrays :as arrays])
     (:use [datascript.impl.protocols]))
 
-(declare slice)
 
 (defmacro caching-hash [coll hash-fn hash-key]
     (assert (clojure.core/symbol? hash-key) "hash-key is substituted twice")
@@ -388,7 +387,7 @@
 
 ;; BTSet
 
-(declare conj disj btset-iter)
+(declare conj disj btset-iter slice)
 
 (def ^:private ^:const uninitialized-hash nil)
 
