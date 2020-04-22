@@ -180,3 +180,12 @@
         "Writes s with writer and returns the result.")
     (-flush [writer]
         "Flush writer."))
+
+(defprotocol IAssociative
+    "Protocol for adding associativity to collections."
+    (^boolean -contains-key? [coll k]
+        "Returns true if k is a key in coll.")
+    #_(-entry-at [coll k])
+    (^clj -assoc [coll k v]
+        "Returns a new collection of coll with a mapping from key k to
+         value v added to it."))
