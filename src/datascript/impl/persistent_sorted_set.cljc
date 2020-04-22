@@ -397,7 +397,7 @@
 
 (def ^:private ^:const uninitialized-hash nil)
 
-(deftype BTSet [root shift cnt comparator meta ^:mutable _hash]
+(deftype BTSet [root shift cnt comparator meta ^:volatile-mutable _hash]
     ;    Object
     ;    (toString [this] (pr-str* this))
 
@@ -423,7 +423,7 @@
 
     IHash
     (-hash [this]
-        ;(caching-hash this hash-unordered-coll _hash)
+        (caching-hash this hash-unordered-coll _hash)
         (hash-unordered-coll this))
 
     ICollection

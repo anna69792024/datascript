@@ -213,7 +213,7 @@
 
 (deftype Datom #?(:clj [^int e a v ^int tx ^:unsynchronized-mutable ^int _hash]
                   :cljs [^number e a v ^number tx ^:mutable ^number _hash]
-                  :cljr [^Int64 e a v ^Int64 tx ^:mutable ^Int64 _hash])
+                  :cljr [^Int64 e a v ^Int64 tx ^:volatile-mutable _hash])
   IDatom
   (datom-tx [d] (if (pos? tx) tx (- tx)))
   (datom-added [d] (pos? tx))
@@ -325,7 +325,8 @@
       3 (datom-tx d)
       4 (datom-added d)
         #?(:clj  (throw (IndexOutOfBoundsException.))
-           :cljs (throw (js/Error. (str "Datom/-nth: Index out of bounds: " i))))))
+           :cljs (throw (js/Error. (str "Datom/-nth: Index out of bounds: " i)))
+           :cljr (throw (IndexOutOfRangeException. (str "Datom/-nth: Index out of bounds: " i))))))
   ([^Datom d ^long i not-found]
     (case i
       0 (.-e d)
@@ -342,7 +343,8 @@
     :v     (datom (.-e d) (.-a d) v       (datom-tx d) (datom-added d))
     :tx    (datom (.-e d) (.-a d) (.-v d) v            (datom-added d))
     :added (datom (.-e d) (.-a d) (.-v d) (datom-tx d) v)
-    (throw (IllegalArgumentException. (str "invalid key for #datascript/Datom: " k)))))
+      #?(:clj (throw (IllegalArgumentException. (str "invalid key for #datascript/Datom: " k)))
+         :cljr (throw (ArgumentException. (str "invalid key for #datascript/Datom: " k))))))
 
 ;; printing and reading
 ;; #datomic/DB {:schema <map>, :datoms <vector of [e a v tx]>}
@@ -371,7 +373,19 @@
              (if (== 0 c#)
                ~res
                c#)))
-        res))))
+        res)))
+   :cljr
+  (defmacro combine-cmp [& comps]
+      (loop [comps (reverse comps)
+             res   (num 0)]
+          (if (not-empty comps)
+              (recur
+                  (next comps)
+                  `(let [c# ~(first comps)]
+                    (if (== 0 c#)
+                        ~res
+                        c#)))
+              res))))
 
 #?(:clj
    (defn- -case-tree [queries variants]
@@ -381,11 +395,23 @@
          (list 'if (first queries)
                (-case-tree (next queries) v1)
                (-case-tree (next queries) v2)))
-       (first variants))))
+       (first variants)))
+   :cljr
+   (defn- -case-tree [queries variants]
+       (if queries
+           (let [v1 (take (/ (count variants) 2) variants)
+                 v2 (drop (/ (count variants) 2) variants)]
+               (list 'if (first queries)
+                     (-case-tree (next queries) v1)
+                     (-case-tree (next queries) v2)))
+           (first variants))))
 
 #?(:clj
    (defmacro case-tree [qs vs]
-     (-case-tree qs vs)))
+     (-case-tree qs vs))
+   :cljr
+   (defmacro case-tree [qs vs]
+       (-case-tree qs vs)))
 
 (defn cmp [o1 o2]
   (if (nil? o1) 0
@@ -397,24 +423,36 @@
 
 (defn cmp-datoms-eavt [^Datom d1, ^Datom d2]
   (combine-cmp
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
     (cmp (.-a d1) (.-a d2))
     (cmp (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 (defn cmp-datoms-aevt [^Datom d1, ^Datom d2]
   (combine-cmp
     (cmp (.-a d1) (.-a d2))
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
     (cmp (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 (defn cmp-datoms-avet [^Datom d1, ^Datom d2]
   (combine-cmp
     (cmp (.-a d1) (.-a d2))
     (cmp (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 ;; fast versions without nil checks
 
@@ -425,34 +463,50 @@
        (-compare a1 a2)
        (garray/defaultCompare a1 a2))
      :clj
-     (.compareTo ^Comparable a1 a2)))
+     (.compareTo ^Comparable a1 a2)
+     :cljr
+     (.CompareTo ^IComparable a1 a2)))
 
 (defn cmp-datoms-eav-quick [^Datom d1, ^Datom d2]
   (combine-cmp
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
     (cmp-attr-quick (.-a d1) (.-a d2))
     (compare (.-v d1) (.-v d2))))
 
 (defn cmp-datoms-eavt-quick [^Datom d1, ^Datom d2]
   (combine-cmp
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
     (cmp-attr-quick (.-a d1) (.-a d2))
     (compare (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 (defn cmp-datoms-aevt-quick [^Datom d1, ^Datom d2]
   (combine-cmp
     (cmp-attr-quick (.-a d1) (.-a d2))
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
     (compare (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 (defn cmp-datoms-avet-quick [^Datom d1, ^Datom d2]
   (combine-cmp
     (cmp-attr-quick (.-a d1) (.-a d2))
     (compare (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 (defn- diff-sorted [a b cmp]
   (loop [only-a []
@@ -507,7 +561,7 @@
     (update :avet persistent!)))
 
 (defrecord-updatable DB [schema eavt aevt avet max-eid max-tx rschema hash]
-  #?@(:cljs
+  #?@(:default
       [IHash                (-hash  [db]        (hash-db db))
        IEquiv               (-equiv [db other]  (equiv-db db other))
        ISeqable             (-seq   [db]        (-seq  (.-eavt db)))
