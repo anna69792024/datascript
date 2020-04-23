@@ -698,7 +698,10 @@
    Consist of 64 bits of current UNIX timestamp (in seconds) and 64 random bits (2^64 different unique values per second)."
   ([]
     (squuid #?(:clj  (System/currentTimeMillis)
-               :cljs (.getTime (js/Date.)))))
+               :cljs (.getTime (js/Date.))
+               :cljr (long (/ (- (.Ticks DateTime/Now)
+                                 (.Ticks (DateTime. 1970 1 1 0 0 0 0)))
+                              10000)))))
   ([msec]
   #?(:clj
       (let [uuid     (UUID/randomUUID)
@@ -718,7 +721,14 @@
            "-" (-> (rand-bits 16) (bit-and 0x3FFF) (bit-or 0x8000) (to-hex-string 4))
            "-" (-> (rand-bits 16) (to-hex-string 4))
                (-> (rand-bits 16) (to-hex-string 4))
-               (-> (rand-bits 16) (to-hex-string 4)))))))
+               (-> (rand-bits 16) (to-hex-string 4))))
+     :cljr
+      (let [low-str (-> (Guid/NewGuid)
+                        (str)
+                        (clojure.string/replace "-" "")
+                        (subs 8))
+            time    (int (/ msec 1000))]
+          (Guid/Parse (str (format "%08x" time) low-str))))))
 
 (defn squuid-time-millis
   "Returns time that was used in [[squuid]] call, in milliseconds, rounded to the closest second."
@@ -728,4 +738,7 @@
               (* 1000))
      :cljs (-> (subs (str uuid) 0 8)
                (js/parseInt 16)
+               (* 1000))
+     :cljr (-> (subs (str uuid) 0 8)
+               (Int64/Parse System.Globalization.NumberStyles/HexNumber)
                (* 1000))))
