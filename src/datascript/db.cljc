@@ -165,7 +165,7 @@
             form))
         body)))
    :cljr
-   (defn- make-record-updatable-clj [name fields & impls]
+   (defn- make-record-updatable-cljr [name fields & impls]
        (let [impl-map (->> impls (map (juxt get-sig identity)) (filter first) (into {}))
              body     (macroexpand-1 (list* 'defrecord name fields impls))]
            (clojure.walk/postwalk
@@ -185,7 +185,7 @@
         (defrecord ~name ~fields)
         (extend-type ~name ~@impls)))
    :cljr
-   (defn- make-record-updatable-cljs [name fields & impls]
+   (defn- make-record-updatable-cljr [name fields & impls]
        `(do
          (defrecord ~name ~fields)
          (extend-type ~name ~@impls))))
@@ -197,7 +197,7 @@
        ~(apply make-record-updatable-clj  name fields impls)))
    :cljr
    (defmacro defrecord-updatable [name fields & impls]
-       (apply make-record-updatable-cljs name fields impls)))
+       (apply make-record-updatable-cljr name fields impls)))
 
 ;; ----------------------------------------------------------------------------
 
