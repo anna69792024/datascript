@@ -1,7 +1,6 @@
 (ns ^:no-doc datascript.pull-parser
   (:require
-   [datascript.db :as db #?(:cljs :refer-macros :clj :refer) [raise]]))
-
+   [datascript.db :as db #?(:cljs :refer-macros :clj :refer :cljr :refer) [raise]]))
 (defrecord PullSpec [wildcard? attrs])
 
 (defprotocol IPullSpecComponent
