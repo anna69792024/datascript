@@ -12,7 +12,7 @@
     (:refer-clojure :exclude [seqable?]))
 
 ;; ----------------------------------------------------------------------------
-(do
+
 #?(:cljs
    (do
      (def Exception js/Error)
