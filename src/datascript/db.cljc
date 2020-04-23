@@ -163,32 +163,17 @@
                            (when-some [impl (-> method get-sig impl-map)]
                              (not= method impl)))))
             form))
-        body)))
-   :cljr
+        body))))
+
+#?(:cljr
    (defn- make-record-updatable-cljr [name fields & impls]
-       (let [impl-map (->> impls (map (juxt get-sig identity)) (filter first) (into {}))
-             body     (macroexpand-1 (list* 'defrecord name fields impls))]
-           (clojure.walk/postwalk
-            (fn [form]
-                (if (and (sequential? form) (= 'deftype* (first form)))
-                    (->> form
-                         dedupe-interfaces
-                         (remove (fn [method]
-                                     (when-some [impl (-> method get-sig impl-map)]
-                                         (not= method impl)))))
-                    form))
-            body))))
+       `(deftype ~name ~fields ~@impls)))
 
 #?(:clj
    (defn- make-record-updatable-cljs [name fields & impls]
      `(do
         (defrecord ~name ~fields)
-        (extend-type ~name ~@impls)))
-   :cljr
-   (defn- make-record-updatable-cljr [name fields & impls]
-       `(do
-         (defrecord ~name ~fields)
-         (extend-type ~name ~@impls))))
+        (extend-type ~name ~@impls))))
 
 #?(:clj
    (defmacro defrecord-updatable [name fields & impls]
@@ -567,7 +552,8 @@
        IPrintWithWriter     (-pr-writer [db w opts] #_(pr-db db w opts))
        IEditableCollection  (-as-transient [db] (db-transient db))
        ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
-                            (-persistent! [db] (db-persistent! db))]
+                            (-persistent! [db] (db-persistent! db))
+       #?@(:cljr [clojure.lang.IHashEq (hasheq [db] (-hash db))])]
 
       :clj
       [Object               (hashCode [db]      (hash-db db))
@@ -771,7 +757,15 @@
   ([schema]
     {:pre [(or (nil? schema) (map? schema))]}
     (validate-schema schema)
-    (map->DB
+   (DB. schema                                     ;; schema
+        (set/sorted-set-by cmp-datoms-eavt)        ;; eavt
+        (set/sorted-set-by cmp-datoms-aevt)        ;; aevt
+        (set/sorted-set-by cmp-datoms-avet)        ;; avet
+        e0                                         ;; max-eid
+        tx0                                        ;; max-tx
+        (rschema (merge implicit-schema schema))   ;; rschema
+        (atom 0))                                  ;; hash
+    #_(map->DB
       {:schema  schema
        :rschema (rschema (merge implicit-schema schema))
        :eavt    (set/sorted-set-by cmp-datoms-eavt)
@@ -805,7 +799,15 @@
           avet        (set/from-sorted-array cmp-datoms-avet avet-arr)
           max-eid     (init-max-eid eavt)
           max-tx      (transduce (map (fn [^Datom d] (datom-tx d))) max tx0 eavt)]
-      (map->DB {
+        (DB. schema    ;; schema
+             eavt      ;; eavt
+             aevt      ;; aevt
+             avet      ;; avet
+             max-eid   ;; max-eid
+             max-tx    ;; max-tx
+             rschema   ;; rschema
+             (atom 0)) ;; hash 
+      #_(map->DB {
         :schema  schema
         :rschema rschema
         :eavt    eavt

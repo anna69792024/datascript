@@ -21,9 +21,11 @@
       :cljr [clojure.lang.IHashEq (hasheq [hb] 0xBEEF)]))
 
 (deftest test-defrecord-updatable
-  (is (= 0xBEEF (-> (map->HashBeef {:x :ignored}) hash))))
-
-
+  (is (= 0xBEEF 
+         (-> #?(:clj  (map->HashBeef {:x :ignored})
+                :cljs (map->HashBeef {:x :ignored})
+                :cljr (HashBeef. :ignored))
+             hash))))
 
 ;; whitebox test to confirm that hash cache caches
 (deftest test-db-hash-cache
