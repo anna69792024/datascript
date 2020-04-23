@@ -1,4 +1,5 @@
-(ns datascript.impl.protocols)
+(ns datascript.impl.core
+    "Protocols and functions copyed from cljs.core")
 
 (defprotocol ICloneableProtocol
     "Protocol for cloning a value."
@@ -189,3 +190,62 @@
     (^clj -assoc [coll k v]
         "Returns a new collection of coll with a mapping from key k to
          value v added to it."))
+
+(defprotocol IIterable
+    "Protocol for iterating over a collection."
+    (-iterator [coll]
+        "Returns an iterator for coll."))
+
+(defprotocol ASeq
+    "Marker protocol indicating an array sequence.")
+
+
+(defn equiv-sequential
+    "Assumes x is sequential. Returns true if x equals y, otherwise
+    returns false."
+    [x y]
+    (boolean
+     (when (sequential? y)
+         (if (and (counted? x) (counted? y)
+                  (not (== (count x) (count y))))
+             false
+             (loop [xs (seq x)
+                    ys (seq y)]
+                 (cond (nil? xs)               (nil? ys)
+                     (nil? ys)                 false
+                     (= (first xs) (first ys)) (recur (next xs) (next ys))
+                     :else                     false))))))
+
+(defmacro caching-hash [coll hash-fn hash-key]
+    (assert (clojure.core/symbol? hash-key) "hash-key is substituted twice")
+    `(let [h# ~hash-key]
+      (if-not (nil? h#)
+          h#
+          (let [h# (~hash-fn ~coll)]
+              (set! ~hash-key h#)
+              h#))))
+
+
+(defn pr-sequential-writer [writer print-one begin sep end opts coll]
+    (binding [*print-level* (when-not (nil? *print-level*) (dec *print-level*))]
+        (if (and (not (nil? *print-level*)) (neg? *print-level*))
+            (-write writer "#")
+            (do
+                (-write writer begin)
+                (if (zero? (:print-length opts))
+                    (when (seq coll)
+                        (-write writer (or (:more-marker opts) "...")))
+                    (do
+                        (when (seq coll)
+                            (print-one (first coll) writer opts))
+                        (loop [coll (next coll)
+                               n    (dec (:print-length opts))]
+                            (if (and coll (or (nil? n) (not (zero? n))))
+                                (do
+                                    (-write writer sep)
+                                    (print-one (first coll) writer opts)
+                                    (recur (next coll) (dec n)))
+                                (when (and (seq coll) (zero? n))
+                                    (-write writer sep)
+                                    (-write writer (or (:more-marker opts) "...")))))))
+                (-write writer end)))))

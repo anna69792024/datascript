@@ -8,11 +8,11 @@
     [#?(:clj me.tonsky.persistent-sorted-set.arrays
         :cljr datascript.impl.sorted-set.arrays) :as arrays])
   #?(:cljs (:require-macros [datascript.db :refer [case-tree combine-cmp raise defrecord-updatable cond+]]))
-    #?(:cljr (:use [datascript.impl.protocols]))
+    #?(:cljr (:use [datascript.impl.core]))
     (:refer-clojure :exclude [seqable?]))
 
 ;; ----------------------------------------------------------------------------
-
+(do
 #?(:cljs
    (do
      (def Exception js/Error)
@@ -197,11 +197,7 @@
        ~(apply make-record-updatable-clj  name fields impls)))
    :cljr
    (defmacro defrecord-updatable [name fields & impls]
-       `(apply make-record-updatable-cljs name fields impls)
-;       `(if-cljs
-;         ~(apply make-record-updatable-cljs name fields impls)
-;         ~(apply make-record-updatable-clj  name fields impls))
-       ))
+       (apply make-record-updatable-cljs name fields impls)))
 
 ;; ----------------------------------------------------------------------------
 
@@ -568,7 +564,7 @@
        IReversible          (-rseq  [db]        (-rseq (.-eavt db)))
        ICounted             (-count [db]        (count (.-eavt db)))
        IEmptyableCollection (-empty [db]        (with-meta (empty-db (.-schema db)) (meta db)))
-       IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
+       IPrintWithWriter     (-pr-writer [db w opts] #_(pr-db db w opts))
        IEditableCollection  (-as-transient [db] (db-transient db))
        ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
                             (-persistent! [db] (db-persistent! db))]
@@ -903,23 +899,28 @@
 (defrecord TxReport [db-before db-after tx-data tempids tx-meta])
 
 (defn #?@(:clj  [^Boolean is-attr?]
-          :cljs [^boolean is-attr?]) [db attr property]
+          :cljs [^boolean is-attr?]
+          :cljr [^Boolean is-attr?]) [db attr property]
   (contains? (-attrs-by db property) attr))
 
 (defn #?@(:clj  [^Boolean multival?]
-          :cljs [^boolean multival?]) [db attr]
+          :cljs [^boolean multival?]
+          :cljr [^Boolean multival?]) [db attr]
   (is-attr? db attr :db.cardinality/many))
 
 (defn #?@(:clj  [^Boolean ref?]
-          :cljs [^boolean ref?]) [db attr]
+          :cljs [^boolean ref?]
+          :cljr [^Boolean ref?]) [db attr]
   (is-attr? db attr :db.type/ref))
 
 (defn #?@(:clj  [^Boolean component?]
-          :cljs [^boolean component?]) [db attr]
+          :cljs [^boolean component?]
+          :cljr [^Boolean component?]) [db attr]
   (is-attr? db attr :db/isComponent))
 
 (defn #?@(:clj  [^Boolean indexing?]
-          :cljs [^boolean indexing?]) [db attr]
+          :cljs [^boolean indexing?]
+          :cljr [^Boolean indexing?]) [db attr]
   (is-attr? db attr :db/index))
 
 (defn entid [db eid]
@@ -942,7 +943,8 @@
         :else
           (-> (-datoms db :avet eid) first :e)))
     
-    #?@(:cljs [(array? eid) (recur db (array-seq eid))])
+;    #?@(:cljs [(array? eid) (recur db (array-seq eid))]
+;        :cljr [(array? eid) (recur db (array-seq eid))])
     
     (keyword? eid)
     (-> (-datoms db :avet [:db/ident eid]) first :e)
@@ -994,7 +996,8 @@
   (inc (:max-eid db)))
 
 (defn- #?@(:clj  [^Boolean tx-id?]
-           :cljs [^boolean tx-id?])
+           :cljs [^boolean tx-id?]
+           :cljr [^Boolean tx-id?])
   [e]
   (or (= e :db/current-tx)
       (= e ":db/current-tx") ;; for datascript.js interop
@@ -1002,7 +1005,8 @@
       (= e "datascript.tx")))
 
 (defn- #?@(:clj  [^Boolean tempid?]
-           :cljs [^boolean tempid?])
+           :cljs [^boolean tempid?]
+           :cljr [^Boolean tempid?])
   [x]
   (or (and (number? x) (neg? x)) (string? x)))
 
@@ -1057,7 +1061,8 @@
       (update-in [:tx-data] conj datom)))
 
 (defn #?@(:clj  [^Boolean reverse-ref?]
-          :cljs [^boolean reverse-ref?]) [attr]
+          :cljs [^boolean reverse-ref?]
+          :cljr [^Boolean reverse-ref?]) [attr]
   (cond
     (keyword? attr)
     (= \_ (nth (name attr) 0))
