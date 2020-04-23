@@ -3,10 +3,13 @@
     #?(:cljs [goog.array :as garray])
     [clojure.walk]
     [clojure.data]
-    [me.tonsky.persistent-sorted-set :as set]
-    [me.tonsky.persistent-sorted-set.arrays :as arrays])
+    [#?(:clj me.tonsky.persistent-sorted-set
+        :cljr datascript.impl.persistent-sorted-set) :as set]
+    [#?(:clj me.tonsky.persistent-sorted-set.arrays
+        :cljr datascript.impl.sorted-set.arrays) :as arrays])
   #?(:cljs (:require-macros [datascript.db :refer [case-tree combine-cmp raise defrecord-updatable cond+]]))
-  (:refer-clojure :exclude [seqable?])) 
+    #?(:cljr (:use [datascript.impl.core]))
+    (:refer-clojure :exclude [seqable?]))
 
 ;; ----------------------------------------------------------------------------
 
@@ -28,13 +31,21 @@
   (defmacro raise [& fragments]
     (let [msgs (butlast fragments)
           data (last fragments)]
-      `(throw (ex-info (str ~@(map (fn [m#] (if (string? m#) m# (list 'pr-str m#))) msgs)) ~data)))))
+      `(throw (ex-info (str ~@(map (fn [m#] (if (string? m#) m# (list 'pr-str m#))) msgs)) ~data))))
+   :cljr
+   (defmacro raise [& fragments]
+       (let [msgs (butlast fragments)
+             data (last fragments)]
+           `(throw (ex-info (str ~@(map (fn [m#] (if (string? m#) m# (list 'pr-str m#))) msgs)) ~data))))
+   )
 
 (defn #?@(:clj  [^Boolean seqable?]  
-          :cljs [^boolean seqable?])
+          :cljs [^boolean seqable?]
+          :cljr [^Boolean seqable?])
   [x]
   (and (not (string? x))
-  #?(:cljs (or (cljs.core/seqable? x)
+  #?(:default (or (#?(:cljs cljs.core/seqable?
+                      :cljr clojure.core/seqable?) x)
                (arrays/array? x))
      :clj  (or (seq? x)
                (instance? clojure.lang.Seqable x)
@@ -48,14 +59,26 @@
     (when-some [[test expr & rest] clauses]
       (case test
         :let `(let ~expr (cond+ ~@rest))
-        `(if ~test ~expr (cond+ ~@rest))))))
+        `(if ~test ~expr (cond+ ~@rest)))))
+   :cljr
+  (defmacro cond+ [& clauses]
+      (when-some [[test expr & rest] clauses]
+          (case test
+              :let `(let ~expr (cond+ ~@rest))
+              `(if ~test ~expr (cond+ ~@rest))))))
 
 #?(:clj
 (defmacro some-of
   ([] nil)
   ([x] x)
   ([x & more]
-    `(let [x# ~x] (if (nil? x#) (some-of ~@more) x#)))))
+    `(let [x# ~x] (if (nil? x#) (some-of ~@more) x#))))
+   :cljr
+(defmacro some-of
+    ([] nil)
+    ([x] x)
+    ([x & more]
+     `(let [x# ~x] (if (nil? x#) (some-of ~@more) x#)))))
 
 ;; ----------------------------------------------------------------------------
 ;; macros and funcs to support writing defrecords and updating
@@ -74,11 +97,18 @@
      "Return then if we are generating cljs code and else for Clojure code.
      https://groups.google.com/d/msg/clojurescript/iBY5HaQda4A/w1lAQi9_AwsJ"
      [then else]
-     (if (cljs-env? &env) then else)))
+     (if (cljs-env? &env) then else))
+   :cljr
+   (defmacro if-cljs
+       "Return then if we are generating cljs code and else for Clojure code.
+       https://groups.google.com/d/msg/clojurescript/iBY5HaQda4A/w1lAQi9_AwsJ"
+       [then else]
+       (if (cljs-env? &env) then else)))
 
 (defn combine-hashes [x y]
   #?(:clj  (clojure.lang.Util/hashCombine x y)
-     :cljs (hash-combine x y)))
+     :cljs (hash-combine x y)
+     :cljr (clojure.lang.Util/hashCombine x y)))
 
 #?(:clj
    (defn- get-sig [method]
@@ -89,7 +119,17 @@
           (vector? (second method))
           (let [sym (first method)
                 ns  (or (some->> sym resolve meta :ns str) "clojure.core")]
-            [(symbol ns (name sym)) (-> method second count)]))))
+            [(symbol ns (name sym)) (-> method second count)])))
+   :cljr
+   (defn- get-sig [method]
+       ;; expects something like '(method-symbol [arg arg arg] ...)
+       ;; if the thing matches, returns [fully-qualified-symbol arity], otherwise nil
+       (and (sequential? method)
+            (symbol? (first method))
+            (vector? (second method))
+            (let [sym (first method)
+                  ns  (or (some->> sym resolve meta :ns str) "clojure.core")]
+                [(symbol ns (name sym)) (-> method second count)]))))
 
 #?(:clj
    (defn- dedupe-interfaces [deftype-form]
@@ -99,7 +139,16 @@
      (let [[deftype* tagname classname fields implements interfaces & rest] deftype-form]
        (when (or (not= deftype* 'deftype*) (not= implements :implements))
          (throw (IllegalArgumentException. "deftype-form mismatch")))
-       (list* deftype* tagname classname fields implements (vec (distinct interfaces)) rest))))
+       (list* deftype* tagname classname fields implements (vec (distinct interfaces)) rest)))
+   :cljr
+   (defn- dedupe-interfaces [deftype-form]
+       ;; get the interfaces list, remove any duplicates, similar to remove-nil-implements in potemkin
+       ;; verified w/ deftype impl in compiler:
+       ;; (deftype* tagname classname [fields] :implements [interfaces] :tag tagname methods*)
+       (let [[deftype* tagname classname fields implements interfaces & rest] deftype-form]
+           (when (or (not= deftype* 'deftype*) (not= implements :implements))
+               (throw (ArgumentException. "deftype-form mismatch")))
+           (list* deftype* tagname classname fields implements (vec (distinct interfaces)) rest))))
 
 #?(:clj
    (defn- make-record-updatable-clj [name fields & impls]
@@ -114,19 +163,41 @@
                            (when-some [impl (-> method get-sig impl-map)]
                              (not= method impl)))))
             form))
-        body))))
+        body)))
+   :cljr
+   (defn- make-record-updatable-cljr [name fields & impls]
+       (let [impl-map (->> impls (map (juxt get-sig identity)) (filter first) (into {}))
+             body     (macroexpand-1 (list* 'defrecord name fields impls))]
+           (clojure.walk/postwalk
+            (fn [form]
+                (if (and (sequential? form) (= 'deftype* (first form)))
+                    (->> form
+                         dedupe-interfaces
+                         (remove (fn [method]
+                                     (when-some [impl (-> method get-sig impl-map)]
+                                         (not= method impl)))))
+                    form))
+            body))))
 
 #?(:clj
    (defn- make-record-updatable-cljs [name fields & impls]
      `(do
         (defrecord ~name ~fields)
-        (extend-type ~name ~@impls))))
+        (extend-type ~name ~@impls)))
+   :cljr
+   (defn- make-record-updatable-cljr [name fields & impls]
+       `(do
+         (defrecord ~name ~fields)
+         (extend-type ~name ~@impls))))
 
 #?(:clj
    (defmacro defrecord-updatable [name fields & impls]
      `(if-cljs
        ~(apply make-record-updatable-cljs name fields impls)
-       ~(apply make-record-updatable-clj  name fields impls))))
+       ~(apply make-record-updatable-clj  name fields impls)))
+   :cljr
+   (defmacro defrecord-updatable [name fields & impls]
+       (apply make-record-updatable-cljr name fields impls)))
 
 ;; ----------------------------------------------------------------------------
 
@@ -137,12 +208,13 @@
   (datom-added [this]))
 
 (deftype Datom #?(:clj [^int e a v ^int tx ^:unsynchronized-mutable ^int _hash]
-                  :cljs [^number e a v ^number tx ^:mutable ^number _hash])
+                  :cljs [^number e a v ^number tx ^:mutable ^number _hash]
+                  :cljr [^Int64 e a v ^Int64 tx ^:volatile-mutable _hash])
   IDatom
   (datom-tx [d] (if (pos? tx) tx (- tx)))
   (datom-added [d] (pos? tx))
 
-  #?@(:cljs
+  #?@(:default
        [IHash
         (-hash [d] (if (zero? _hash)
                      (set! _hash (hash-datom d))
@@ -166,7 +238,7 @@
 
         IPrintWithWriter
         (-pr-writer [d writer opts]
-                    (pr-sequential-writer writer pr-writer
+                    #_(pr-sequential-writer writer pr-writer
                                           "#datascript/Datom [" " " "]"
                                           opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))]
       :clj
@@ -249,7 +321,8 @@
       3 (datom-tx d)
       4 (datom-added d)
         #?(:clj  (throw (IndexOutOfBoundsException.))
-           :cljs (throw (js/Error. (str "Datom/-nth: Index out of bounds: " i))))))
+           :cljs (throw (js/Error. (str "Datom/-nth: Index out of bounds: " i)))
+           :cljr (throw (IndexOutOfRangeException. (str "Datom/-nth: Index out of bounds: " i))))))
   ([^Datom d ^long i not-found]
     (case i
       0 (.-e d)
@@ -266,7 +339,8 @@
     :v     (datom (.-e d) (.-a d) v       (datom-tx d) (datom-added d))
     :tx    (datom (.-e d) (.-a d) (.-v d) v            (datom-added d))
     :added (datom (.-e d) (.-a d) (.-v d) (datom-tx d) v)
-    (throw (IllegalArgumentException. (str "invalid key for #datascript/Datom: " k)))))
+      #?(:clj (throw (IllegalArgumentException. (str "invalid key for #datascript/Datom: " k)))
+         :cljr (throw (ArgumentException. (str "invalid key for #datascript/Datom: " k))))))
 
 ;; printing and reading
 ;; #datomic/DB {:schema <map>, :datoms <vector of [e a v tx]>}
@@ -295,7 +369,19 @@
              (if (== 0 c#)
                ~res
                c#)))
-        res))))
+        res)))
+   :cljr
+  (defmacro combine-cmp [& comps]
+      (loop [comps (reverse comps)
+             res   (num 0)]
+          (if (not-empty comps)
+              (recur
+                  (next comps)
+                  `(let [c# ~(first comps)]
+                    (if (== 0 c#)
+                        ~res
+                        c#)))
+              res))))
 
 #?(:clj
    (defn- -case-tree [queries variants]
@@ -305,11 +391,23 @@
          (list 'if (first queries)
                (-case-tree (next queries) v1)
                (-case-tree (next queries) v2)))
-       (first variants))))
+       (first variants)))
+   :cljr
+   (defn- -case-tree [queries variants]
+       (if queries
+           (let [v1 (take (/ (count variants) 2) variants)
+                 v2 (drop (/ (count variants) 2) variants)]
+               (list 'if (first queries)
+                     (-case-tree (next queries) v1)
+                     (-case-tree (next queries) v2)))
+           (first variants))))
 
 #?(:clj
    (defmacro case-tree [qs vs]
-     (-case-tree qs vs)))
+     (-case-tree qs vs))
+   :cljr
+   (defmacro case-tree [qs vs]
+       (-case-tree qs vs)))
 
 (defn cmp [o1 o2]
   (if (nil? o1) 0
@@ -321,24 +419,36 @@
 
 (defn cmp-datoms-eavt [^Datom d1, ^Datom d2]
   (combine-cmp
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
     (cmp (.-a d1) (.-a d2))
     (cmp (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 (defn cmp-datoms-aevt [^Datom d1, ^Datom d2]
   (combine-cmp
     (cmp (.-a d1) (.-a d2))
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
     (cmp (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 (defn cmp-datoms-avet [^Datom d1, ^Datom d2]
   (combine-cmp
     (cmp (.-a d1) (.-a d2))
     (cmp (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 ;; fast versions without nil checks
 
@@ -349,34 +459,50 @@
        (-compare a1 a2)
        (garray/defaultCompare a1 a2))
      :clj
-     (.compareTo ^Comparable a1 a2)))
+     (.compareTo ^Comparable a1 a2)
+     :cljr
+     (.CompareTo ^IComparable a1 a2)))
 
 (defn cmp-datoms-eav-quick [^Datom d1, ^Datom d2]
   (combine-cmp
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
     (cmp-attr-quick (.-a d1) (.-a d2))
     (compare (.-v d1) (.-v d2))))
 
 (defn cmp-datoms-eavt-quick [^Datom d1, ^Datom d2]
   (combine-cmp
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
     (cmp-attr-quick (.-a d1) (.-a d2))
     (compare (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 (defn cmp-datoms-aevt-quick [^Datom d1, ^Datom d2]
   (combine-cmp
     (cmp-attr-quick (.-a d1) (.-a d2))
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
     (compare (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 (defn cmp-datoms-avet-quick [^Datom d1, ^Datom d2]
   (combine-cmp
     (cmp-attr-quick (.-a d1) (.-a d2))
     (compare (.-v d1) (.-v d2))
-    (#?(:clj Integer/compare :cljs -) (.-e d1) (.-e d2))
-    (#?(:clj Integer/compare :cljs -) (datom-tx d1) (datom-tx d2))))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (.-e d1) (.-e d2))
+    (#?(:clj Integer/compare 
+        :cljs -
+        :cljr compare) (datom-tx d1) (datom-tx d2))))
 
 (defn- diff-sorted [a b cmp]
   (loop [only-a []
@@ -431,14 +557,14 @@
     (update :avet persistent!)))
 
 (defrecord-updatable DB [schema eavt aevt avet max-eid max-tx rschema hash]
-  #?@(:cljs
+  #?@(:default
       [IHash                (-hash  [db]        (hash-db db))
        IEquiv               (-equiv [db other]  (equiv-db db other))
        ISeqable             (-seq   [db]        (-seq  (.-eavt db)))
        IReversible          (-rseq  [db]        (-rseq (.-eavt db)))
        ICounted             (-count [db]        (count (.-eavt db)))
        IEmptyableCollection (-empty [db]        (with-meta (empty-db (.-schema db)) (meta db)))
-       IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
+       IPrintWithWriter     (-pr-writer [db w opts] #_(pr-db db w opts))
        IEditableCollection  (-as-transient [db] (db-transient db))
        ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
                             (-persistent! [db] (db-persistent! db))]
@@ -773,23 +899,28 @@
 (defrecord TxReport [db-before db-after tx-data tempids tx-meta])
 
 (defn #?@(:clj  [^Boolean is-attr?]
-          :cljs [^boolean is-attr?]) [db attr property]
+          :cljs [^boolean is-attr?]
+          :cljr [^Boolean is-attr?]) [db attr property]
   (contains? (-attrs-by db property) attr))
 
 (defn #?@(:clj  [^Boolean multival?]
-          :cljs [^boolean multival?]) [db attr]
+          :cljs [^boolean multival?]
+          :cljr [^Boolean multival?]) [db attr]
   (is-attr? db attr :db.cardinality/many))
 
 (defn #?@(:clj  [^Boolean ref?]
-          :cljs [^boolean ref?]) [db attr]
+          :cljs [^boolean ref?]
+          :cljr [^Boolean ref?]) [db attr]
   (is-attr? db attr :db.type/ref))
 
 (defn #?@(:clj  [^Boolean component?]
-          :cljs [^boolean component?]) [db attr]
+          :cljs [^boolean component?]
+          :cljr [^Boolean component?]) [db attr]
   (is-attr? db attr :db/isComponent))
 
 (defn #?@(:clj  [^Boolean indexing?]
-          :cljs [^boolean indexing?]) [db attr]
+          :cljs [^boolean indexing?]
+          :cljr [^Boolean indexing?]) [db attr]
   (is-attr? db attr :db/index))
 
 (defn entid [db eid]
@@ -812,7 +943,8 @@
         :else
           (-> (-datoms db :avet eid) first :e)))
     
-    #?@(:cljs [(array? eid) (recur db (array-seq eid))])
+;    #?@(:cljs [(array? eid) (recur db (array-seq eid))]
+;        :cljr [(array? eid) (recur db (array-seq eid))])
     
     (keyword? eid)
     (-> (-datoms db :avet [:db/ident eid]) first :e)
@@ -864,7 +996,8 @@
   (inc (:max-eid db)))
 
 (defn- #?@(:clj  [^Boolean tx-id?]
-           :cljs [^boolean tx-id?])
+           :cljs [^boolean tx-id?]
+           :cljr [^Boolean tx-id?])
   [e]
   (or (= e :db/current-tx)
       (= e ":db/current-tx") ;; for datascript.js interop
@@ -872,7 +1005,8 @@
       (= e "datascript.tx")))
 
 (defn- #?@(:clj  [^Boolean tempid?]
-           :cljs [^boolean tempid?])
+           :cljs [^boolean tempid?]
+           :cljr [^Boolean tempid?])
   [x]
   (or (and (number? x) (neg? x)) (string? x)))
 
@@ -927,7 +1061,8 @@
       (update-in [:tx-data] conj datom)))
 
 (defn #?@(:clj  [^Boolean reverse-ref?]
-          :cljs [^boolean reverse-ref?]) [attr]
+          :cljs [^boolean reverse-ref?]
+          :cljr [^Boolean reverse-ref?]) [attr]
   (cond
     (keyword? attr)
     (= \_ (nth (name attr) 0))
