@@ -5,7 +5,7 @@
     (:refer-clojure :exclude
                     [iter conj disj sorted-set sorted-set-by])
     (:require [datascript.impl.sorted-set.arrays :as arrays])
-    (:use [datascript.impl.core]))
+    #?(:cljr (:use [datascript.impl.core])))
 
 ; B+ tree
 ; -------

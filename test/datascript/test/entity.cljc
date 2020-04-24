@@ -1,8 +1,9 @@
 (ns datascript.test.entity
   (:require
-    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
+    [#?(:cljs cljs.reader :clj clojure.edn :cljr clojure.edn) :as edn]
     #?(:cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
-       :clj  [clojure.test :as t :refer        [is are deftest testing]])
+       :clj  [clojure.test :as t :refer        [is are deftest testing]]
+       :cljr [clojure.test :as t :refer        [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.test.core :as tdc])
