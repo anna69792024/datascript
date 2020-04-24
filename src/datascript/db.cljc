@@ -228,14 +228,18 @@
         IAssociative
         (-assoc [d k v] (assoc-datom d k v))
 
-        IPrintWithWriter
-        (-pr-writer [d writer opts]
-                    #_(pr-sequential-writer writer pr-writer
-                                          "#datascript/Datom [" " " "]"
-                                          opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))
-        
-        clojure.lang.IPersistentCollection
-        (equiv [this other] (-equiv this other))]
+        #?@(:cljs
+            [IPrintWithWriter
+             (-pr-writer [d writer opts]
+                         (pr-sequential-writer writer pr-writer
+                                               "#datascript/Datom [" " " "]"
+                                               opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))]
+            :cljr
+            [clojure.lang.IPersistentCollection
+             (equiv [this other] (-equiv this other))
+             clojure.lang.ILookup
+             (valAt [this key] (-lookup this key))
+             (valAt [this key not-found] (-lookup this key not-found))])]
       
       :clj
        [Object
