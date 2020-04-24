@@ -1,7 +1,14 @@
-(ns ^:no-doc datascript.lru)
+(ns ^:no-doc datascript.lru
+    #?(:cljr (:use [datascript.impl.core])))
 
 (declare assoc-lru cleanup-lru)
 
+#?(:cljr
+   (extend-type clojure.lang.PersistentArrayMap
+       ILookup
+       (-lookup [key-value k] (.valAt key-value k))
+       (-lookup [key-value k nf] (.valAt key-value k nf))))
+    
 #?(:cljs
     (deftype LRU [key-value gen-key key-gen gen limit]
       IAssociative
@@ -23,14 +30,19 @@
       (entryAt [_ k]     (.entryAt key-value k))
       (assoc [this k v]  (assoc-lru this k v)))
    :cljr
-    (deftype LRU [^clojure.lang.Associative key-value gen-key key-gen gen limit]
-        clojure.lang.ILookup
-        (valAt [_ k]           (.valAt key-value k))
-        (valAt [_ k not-found] (.valAt key-value k not-found))
+    (deftype LRU [key-value gen-key key-gen gen limit]
+        IAssociative
+        (-assoc [this k v] (assoc-lru this k v))
+        (-contains-key? [_ k] (-contains-key? key-value k))
+        ILookup
+        (-lookup [_ k]    (-lookup key-value k nil))
+        (-lookup [_ k nf] (-lookup key-value k nf))
         clojure.lang.Associative
-        (containsKey [_ k] (.containsKey key-value k))
-        (entryAt [_ k]     (.entryAt key-value k))
-        (assoc [this k v]  (assoc-lru this k v))))
+        (containsKey [this k] (-contains-key? this k))
+        (assoc [this k v]  (-assoc this k v))
+        clojure.lang.ILookup
+        (valAt [this k]           (-lookup this k))
+        (valAt [this k not-found] (-lookup this k not-found))))
 
 (defn assoc-lru [^LRU lru k v]
   (let [key-value (.-key-value lru)
