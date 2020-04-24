@@ -133,10 +133,16 @@
 
             clojure.lang.Seqable
             (seq [this] (-seq this))
+            
+            clojure.lang.IPersistentCollection
+            (equiv [this other] (-equiv this other))
 
             IPrintWithWriter
             (-pr-writer [_ writer opts]
                         (.Write ^System.IO.StringWriter writer (str (assoc @cache :db/id eid))))
+            
+            Object
+            (ToString [e] (pr-str e))
             ])]
 
       :clj
