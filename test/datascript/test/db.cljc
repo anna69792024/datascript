@@ -22,10 +22,7 @@
 
 (deftest test-defrecord-updatable
   (is (= 0xBEEF 
-         (-> #?(:clj  (map->HashBeef {:x :ignored})
-                :cljs (map->HashBeef {:x :ignored})
-                :cljr (HashBeef. :ignored))
-             hash))))
+         (hash (map->HashBeef {:x :ignored})))))
 
 ;; whitebox test to confirm that hash cache caches
 (deftest test-db-hash-cache
