@@ -448,7 +448,14 @@
 
     clojure.lang.IPersistentSet
     (disjoin [this key] (-disjoin this key))
-    (contains [this key] (-lookup this key)))
+    (contains [this key] (-lookup this key))
+    
+    clojure.lang.IEditableCollection
+    (asTransient [this] (-as-transient this))
+    
+    clojure.lang.ITransientCollection
+    (conj [this x] (-conj! this x))
+    (persistent [this] (-persistent! this)))
 
 (defn- keys-for [set path]
     (loop [level (.-shift set)

@@ -21,9 +21,8 @@
       :cljr [clojure.lang.IHashEq (hasheq [hb] 0xBEEF)]))
 
 (deftest test-defrecord-updatable
-  (is (= 0xBEEF (-> (map->HashBeef {:x :ignored}) hash))))
-
-
+  (is (= 0xBEEF 
+         (hash (map->HashBeef {:x :ignored})))))
 
 ;; whitebox test to confirm that hash cache caches
 (deftest test-db-hash-cache
@@ -35,9 +34,7 @@
 (defn- now []
   #?(:clj  (System/currentTimeMillis)
      :cljs (.getTime (js/Date.))
-     :cljr (long (/ (- (.Ticks DateTime/Now)
-                       (.Ticks (DateTime. 1970 1 1 0 0 0 0)))
-                    10000))))
+     :cljr (long (.TotalMilliseconds (.Subtract DateTime/Now (DateTime. 1970 1 1 0 0 0 0 DateTimeKind/Utc))))))
 
 (deftest test-uuid
   (let [now-ms (loop []

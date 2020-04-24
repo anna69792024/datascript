@@ -163,19 +163,16 @@
                            (when-some [impl (-> method get-sig impl-map)]
                              (not= method impl)))))
             form))
-        body)))
-   :cljr
+        body))))
+
+#?(:cljr
    (defn- make-record-updatable-cljr [name fields & impls]
        (let [impl-map (->> impls (map (juxt get-sig identity)) (filter first) (into {}))
              body     (macroexpand-1 (list* 'defrecord name fields impls))]
            (clojure.walk/postwalk
             (fn [form]
                 (if (and (sequential? form) (= 'deftype* (first form)))
-                    (->> form
-                         dedupe-interfaces
-                         (remove (fn [method]
-                                     (when-some [impl (-> method get-sig impl-map)]
-                                         (not= method impl)))))
+                    (dedupe-interfaces form)
                     form))
             body))))
 
@@ -183,12 +180,7 @@
    (defn- make-record-updatable-cljs [name fields & impls]
      `(do
         (defrecord ~name ~fields)
-        (extend-type ~name ~@impls)))
-   :cljr
-   (defn- make-record-updatable-cljr [name fields & impls]
-       `(do
-         (defrecord ~name ~fields)
-         (extend-type ~name ~@impls))))
+        (extend-type ~name ~@impls))))
 
 #?(:clj
    (defmacro defrecord-updatable [name fields & impls]
@@ -240,7 +232,11 @@
         (-pr-writer [d writer opts]
                     #_(pr-sequential-writer writer pr-writer
                                           "#datascript/Datom [" " " "]"
-                                          opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))]
+                                          opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))
+        
+        clojure.lang.IPersistentCollection
+        (equiv [this other] (-equiv this other))]
+      
       :clj
        [Object
         (hashCode [d]
@@ -567,7 +563,12 @@
        IPrintWithWriter     (-pr-writer [db w opts] #_(pr-db db w opts))
        IEditableCollection  (-as-transient [db] (db-transient db))
        ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
-                            (-persistent! [db] (db-persistent! db))]
+                            (-persistent! [db] (db-persistent! db))
+       #?@(:cljr [clojure.lang.IHashEq (hasheq [db] (-hash db))
+                  clojure.lang.IEditableCollection (asTransient [db] (-as-transient db))
+                  clojure.lang.ITransientCollection 
+                  (conj [db key] (-conj! db key))
+                  (persistent [db] (-persistent! db))])]
 
       :clj
       [Object               (hashCode [db]      (hash-db db))
