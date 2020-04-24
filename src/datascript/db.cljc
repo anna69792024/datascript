@@ -565,8 +565,7 @@
        ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
                             (-persistent! [db] (db-persistent! db))
        #?@(:cljr [clojure.lang.IHashEq (hasheq [db] (-hash db))
-                  clojure.lang.IEditableCollection (asTransient [db] #_(throw (ex-info "unsupported astransient" {}))
-                                                                (-as-transient db))
+                  clojure.lang.IEditableCollection (asTransient [db] (-as-transient db))
                   clojure.lang.ITransientCollection 
                   (conj [db key] (-conj! db key))
                   (persistent [db] (-persistent! db))])]
