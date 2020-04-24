@@ -143,6 +143,9 @@
             
             Object
             (ToString [e] (pr-str e))
+            
+            clojure.lang.IHashEq
+            (hasheq [this] (-hash this))
             ])]
 
       :clj

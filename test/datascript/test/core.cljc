@@ -53,7 +53,17 @@
               (if (= ~match m#)
                 (t/do-report {:type :pass, :message ~msg, :expected '~form, :actual e#})
                 (t/do-report {:type :fail, :message ~msg, :expected '~form, :actual e#})))
-            e#)))))
+            e#))))
+   (defmethod t/assert-expr 'thrown-msg? [msg form]
+       (let [[_ match & body] form]
+           `(try ~@body
+             (t/do-report {:type :fail, :message ~msg, :expected '~form, :actual nil})
+             (catch Exception e#
+                 (let [m# (.Message e#)]
+                     (if (= ~match m#)
+                         (t/do-report {:type :pass, :message ~msg, :expected '~form, :actual e#})
+                         (t/do-report {:type :fail, :message ~msg, :expected '~form, :actual e#})))
+                 e#)))))
 
 (defn entity-map [db e]
   (when-let [entity (d/entity db e)]
