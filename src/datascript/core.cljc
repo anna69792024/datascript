@@ -699,9 +699,7 @@
   ([]
     (squuid #?(:clj  (System/currentTimeMillis)
                :cljs (.getTime (js/Date.))
-               :cljr (long (/ (- (.Ticks DateTime/Now)
-                                 (.Ticks (DateTime. 1970 1 1 0 0 0 0)))
-                              10000)))))
+               :cljr (long (.TotalMilliseconds (.Subtract DateTime/Now (DateTime. 1970 1 1 0 0 0 0 DateTimeKind/Utc)))))))
   ([msec]
   #?(:clj
       (let [uuid     (UUID/randomUUID)
