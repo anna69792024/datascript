@@ -359,7 +359,6 @@
   (let [idx (attrs attr)]
     (if (contains? *lookup-attrs* attr)
       (fn [tuple]
-;          (throw (ex-info (str {:type-tuple (type tuple)}) {}))
         (let [eid (#?(:cljs da/aget :clj get :cljr get) tuple idx)]
           (cond
             (number? eid)     eid ;; quick path to avoid fn call
