@@ -1,13 +1,15 @@
 (ns datascript.test.core
   (:require
-    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
+    [#?(:cljs cljs.reader :clj clojure.edn :cljr clojure.core) :as edn]
     #?(:cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
-       :clj  [clojure.test :as t :refer        [is are deftest testing]])
+       :clj  [clojure.test :as t :refer        [is are deftest testing]]
+       :cljr [clojure.test :as t :refer        [is are deftest testing]])
     [clojure.string :as str]
     [datascript.core :as d]
     [datascript.impl.entity :as de]
     [datascript.db :as db #?@(:cljs [:refer-macros [defrecord-updatable]]
-                              :clj  [:refer [defrecord-updatable]])]
+                              :clj  [:refer [defrecord-updatable]]
+                              :cljr [:refer [defrecord-updatable]])]
     #?(:cljs [datascript.test.cljs])))
 
 #?(:cljs
