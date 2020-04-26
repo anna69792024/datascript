@@ -167,8 +167,7 @@
 
 #?(:cljr
    (defn- make-record-updatable-cljr [name fields & impls]
-       (let [impl-map (->> impls (map (juxt get-sig identity)) (filter first) (into {}))
-             body     (macroexpand-1 (list* 'defrecord name fields impls))]
+       (let [body (macroexpand-1 (list* 'defrecord name fields impls))]
            (clojure.walk/postwalk
             (fn [form]
                 (if (and (sequential? form) (= 'deftype* (first form)))
@@ -239,7 +238,8 @@
              (equiv [this other] (-equiv this other))
              clojure.lang.ILookup
              (valAt [this key] (-lookup this key))
-             (valAt [this key not-found] (-lookup this key not-found))])]
+             (valAt [this key not-found] (-lookup this key not-found))
+             clojure.lang.IHashEq (hasheq [d] (-hash d))])]
       
       :clj
        [Object
@@ -575,12 +575,17 @@
        ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
                             (-persistent! [db] (db-persistent! db))
        #?@(:cljr [clojure.lang.IHashEq (hasheq [db] (-hash db))
-                  clojure.lang.IEditableCollection (asTransient [db] (-as-transient db))
-                  clojure.lang.ITransientCollection 
-                  (conj [db key] (-conj! db key))
-                  (persistent [db] (-persistent! db))
-                  clojure.lang.IPersistentCollection
-                  (equiv [db other]   (-equiv db other))])]
+                  clojure.lang.IEditableCollection (asTransient [db] (-as-transient db)) 
+                  clojure.lang.ITransientCollection
+                  (conj [db key] (-conj! db key)) 
+                  (persistent [db] (-persistent! db)) 
+                  
+                  clojure.lang.Counted (clojure.lang.Counted.count [db] (-count db)) 
+                  clojure.lang.IPersistentCollection 
+                  (empty [db] (-empty db)) 
+                  (equiv [db other] (-equiv db other))
+            
+                  clojure.lang.Seqable (seq [db] (-seq db))])]
 
       :clj
       [Object               (hashCode [db]      (hash-db db))
