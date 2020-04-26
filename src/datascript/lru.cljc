@@ -4,10 +4,15 @@
 (declare assoc-lru cleanup-lru)
 
 #?(:cljr
-   (extend-type clojure.lang.PersistentArrayMap
-       ILookup
+   (extend-protocol ILookup
+       clojure.lang.PersistentArrayMap
        (-lookup [key-value k] (.valAt key-value k))
-       (-lookup [key-value k nf] (.valAt key-value k nf))))
+       (-lookup [key-value k nf] (.valAt key-value k nf))
+
+       clojure.lang.PersistentHashMap
+       (-lookup [key-value k] (.valAt key-value k))
+       (-lookup [key-value k nf] (.valAt key-value k nf)) 
+       ))
     
 #?(:cljs
     (deftype LRU [key-value gen-key key-gen gen limit]

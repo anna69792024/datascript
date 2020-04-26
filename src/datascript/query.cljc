@@ -1,11 +1,13 @@
 (ns ^:no-doc datascript.query
   (:require
-   [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
+   [#?(:cljs cljs.reader :clj clojure.edn :cljr clojure.edn) :as edn]
    [clojure.set :as set]
    [clojure.string :as str]
    [clojure.walk :as walk]
-   [datascript.db :as db #?(:cljs :refer-macros :clj :refer) [raise]]
-   [me.tonsky.persistent-sorted-set.arrays :as da]
+   [datascript.db :as db #?(:cljs :refer-macros :clj :refer :cljr :refer) [raise]]
+   [#?(:clj me.tonsky.persistent-sorted-set.arrays
+       :cljs me.tonsky.persistent-sorted-set.arrays
+       :cljr datascript.impl.sorted-set.arrays) :as da]
    [datascript.lru]
    [datascript.impl.entity :as de]
    [datascript.parser :as dp #?@(:cljs [:refer [BindColl BindIgnore BindScalar BindTuple Constant
@@ -15,7 +17,10 @@
    [datascript.pull-parser :as dpp])
   #?(:clj (:import [datascript.parser BindColl BindIgnore BindScalar BindTuple
                     Constant FindColl FindRel FindScalar FindTuple PlainSymbol
-                    RulesVar SrcVar Variable])))
+                    RulesVar SrcVar Variable])
+     :cljr (:import [datascript.parser BindColl BindIgnore BindScalar BindTuple
+                     Constant FindColl FindRel FindScalar FindTuple PlainSymbol
+                     RulesVar SrcVar Variable])))
 
 ;; ----------------------------------------------------------------------------
 
@@ -94,16 +99,18 @@
 ;; Relation algebra
 
 (defn join-tuples [t1 #?(:cljs idxs1
-                         :clj  ^{:tag "[[Ljava.lang.Object;"} idxs1)
+                         :clj  ^{:tag "[[Ljava.lang.Object;"} idxs1
+                         :cljr ^{:tag "System.Object[]"} idxs1)
                    t2 #?(:cljs idxs2
-                         :clj  ^{:tag "[[Ljava.lang.Object;"} idxs2)]
+                         :clj  ^{:tag "[[Ljava.lang.Object;"} idxs2
+                         :cljr ^{:tag "System.Object[]"} idxs2)]
   (let [l1  (alength idxs1)
         l2  (alength idxs2)
         res (da/make-array (+ l1 l2))]
     (dotimes [i l1]
-      (aset res i (#?(:cljs da/aget :clj get) t1 (aget idxs1 i)))) ;; FIXME aget
+      (aset res i (#?(:cljs da/aget :clj get :cljr get) t1 (aget idxs1 i)))) ;; FIXME aget
     (dotimes [i l2]
-      (aset res (+ l1 i) (#?(:cljs da/aget :clj get) t2 (aget idxs2 i)))) ;; FIXME aget
+      (aset res (+ l1 i) (#?(:cljs da/aget :clj get :cljr get) t2 (aget idxs2 i)))) ;; FIXME aget
     res))
 
 (defn sum-rel [a b]
@@ -126,7 +133,7 @@
                         (fn [acc tuple-b]
                           (let [tuple' (da/make-array tlen)]
                             (doseq [[idx-b idx-a] idxb->idxa]
-                              (aset tuple' idx-a (#?(:cljs da/aget :clj get) tuple-b idx-b)))
+                              (aset tuple' idx-a (#?(:cljs da/aget :clj get :cljr get) tuple-b idx-b)))
                             (conj! acc tuple')))
                         (transient (vec tuples-a))
                         tuples-b))]
@@ -229,7 +236,7 @@
              (/ sum (count coll))))
          (stddev 
            [coll] 
-           (#?(:cljs js/Math.sqrt :clj Math/sqrt) (variance coll)))]
+           (#?(:cljs js/Math.sqrt :clj Math/sqrt :cljr Math/Sqrt) (variance coll)))]
    {'avg      avg
     'median   median
     'variance variance
@@ -352,14 +359,15 @@
   (let [idx (attrs attr)]
     (if (contains? *lookup-attrs* attr)
       (fn [tuple]
-        (let [eid (#?(:cljs da/aget :clj get) tuple idx)]
+;          (throw (ex-info (str {:type-tuple (type tuple)}) {}))
+        (let [eid (#?(:cljs da/aget :clj get :cljr get) tuple idx)]
           (cond
             (number? eid)     eid ;; quick path to avoid fn call
             (sequential? eid) (db/entid *implicit-source* eid)
             (da/array? eid)   (db/entid *implicit-source* eid)
             :else             eid)))
       (fn [tuple]
-        (#?(:cljs da/aget :clj get) tuple idx)))))
+        (#?(:cljs da/aget :clj get :cljr get) tuple idx)))))
 
 (defn tuple-key-fn [getters]
   (if (== (count getters) 1)
@@ -367,7 +375,8 @@
     (let [getters (to-array getters)]
       (fn [tuple]
         (list* #?(:cljs (.map getters #(% tuple))
-                  :clj  (to-array (map #(% tuple) getters))))))))
+                  :clj  (to-array (map #(% tuple) getters))
+                  :cljr (to-array (map #(% tuple) getters))))))))
 
 (defn hash-attrs [key-fn tuples]
   (loop [tuples     tuples
@@ -473,7 +482,7 @@
 (defn- context-resolve-val [context sym]
   (when-some [rel (rel-with-attr context sym)]
     (when-some [tuple (first (:tuples rel))]
-      (#?(:cljs da/aget :clj get) tuple ((:attrs rel) sym)))))
+      (#?(:default da/aget :clj get :cljr get) tuple ((:attrs rel) sym)))))
 
 (defn- rel-contains-attrs? [rel attrs]
   (some #(contains? (:attrs rel) %) attrs))
@@ -499,26 +508,27 @@
     ;; CLJS `apply` + `vector` will hold onto mutable array of arguments directly
     ;; https://github.com/tonsky/datascript/issues/262
     (if #?(:clj  false
-           :cljs (identical? f vector))
+           :cljs (identical? f vector)
+           :cljr (identical? f vector))
       (fn [tuple]
         ;; TODO raise if not all args are bound
         (let [args (da/aclone static-args)]
           (dotimes [i len]
             (when-some [tuple-idx (aget tuples-args i)]
-              (let [v (#?(:cljs da/aget :clj get) tuple tuple-idx)]
+              (let [v (#?(:cljs da/aget :clj get :cljr get) tuple tuple-idx)]
                 (da/aset args i v))))
           (apply f args)))
       (fn [tuple]
         ;; TODO raise if not all args are bound
         (dotimes [i len]
           (when-some [tuple-idx (aget tuples-args i)]
-            (let [v (#?(:cljs da/aget :clj get) tuple tuple-idx)]
+            (let [v (#?(:cljs da/aget :clj get :cljr get) tuple tuple-idx)]
               (da/aset static-args i v))))
         (apply f static-args)))))
 
 (defn- resolve-sym [sym]
   #?(:cljs nil
-     :clj (when (namespace sym)
+     :default (when (namespace sym)
             (when-some [v (resolve sym)] @v))))
 
 (defn filter-by-pred [context clause]
@@ -808,12 +818,13 @@
           (let [copy-map (to-array (map #(get keep-attrs %) symbols))
                 len      (count symbols)]
             (recur (for [#?(:cljs t1
-                            :clj ^{:tag "[[Ljava.lang.Object;"} t1) acc
+                            :clj ^{:tag "[[Ljava.lang.Object;"} t1
+                            :cljr ^{:tag "System.Object[]"} t1) acc
                          t2 (:tuples rel)]
                      (let [res (aclone t1)]
                        (dotimes [i len]
                          (when-some [idx (aget copy-map i)]
-                           (aset res i (#?(:cljs da/aget :clj get) t2 idx))))
+                           (aset res i (#?(:cljs da/aget :clj get :cljr get) t2 idx))))
                        res))
                    (next rels)
                    symbols))))
