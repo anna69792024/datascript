@@ -352,7 +352,13 @@
    (defmethod print-method Datom [^Datom d, ^java.io.Writer w]
      (.write w (str "#datascript/Datom "))
      (binding [*out* w]
-       (pr [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))))
+       (pr [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)])))
+   :cljr
+   (defmethod print-method Datom [^Datom d, ^System.IO.TextWriter w]
+       (.Write w (str "#datascript/Datom "))
+       (binding [*out* w]
+           (pr [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))
+       ))
 
 ;; ----------------------------------------------------------------------------
 ;; datom cmp macros/funcs
@@ -882,6 +888,21 @@
      (defmethod print-method DB [db w] (pr-db db w))
      (defmethod print-method FilteredDB [db w] (pr-db db w))     
 ))
+
+#?(:cljr
+   (do
+       (defn pr-db [db, ^System.IO.TextWriter w]
+           (.Write w (str "#datascript/DB {"))
+           (.Write w ":schema ")
+           (binding [*out* w]
+               (pr (-schema db))
+               (.Write w ", :datoms [")
+               (apply pr (map (fn [^Datom d] [(.-e d) (.-a d) (.-v d) (datom-tx d)]) (-datoms db :eavt []))))
+           (.Write w "]}"))
+
+       (defmethod print-method DB [db w] (pr-db db w))
+       (defmethod print-method FilteredDB [db w] (pr-db db w))
+       ))
 
 (defn db-from-reader [{:keys [schema datoms]}]
   (init-db (map (fn [[e a v tx]] (datom e a v tx)) datoms) schema))
