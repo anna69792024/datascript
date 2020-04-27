@@ -431,6 +431,9 @@
     (-pr-writer [this writer opts]
         #_(pr-sequential-writer writer pr-writer "#{" " " "}" opts (seq this)))
 
+    clojure.lang.IHashEq
+    (hasheq [db] (-hash db))
+
     clojure.lang.IPersistentCollection
     (count [this] (-count this))
     (cons [this x] (-conj this x))
@@ -455,7 +458,16 @@
     
     clojure.lang.ITransientCollection
     (conj [this x] (-conj! this x))
-    (persistent [this] (-persistent! this)))
+    (persistent [this] (-persistent! this))
+
+    System.Collections.IEnumerable
+    (GetEnumerator [this] (clojure.lang.SeqEnumerator. this))
+
+    clojure.lang.IObj
+    (withMeta [this new-meta] (-with-meta this new-meta))
+    
+    clojure.lang.IMeta
+    (meta [this] (-meta this)))
 
 (defn- keys-for [set path]
     (loop [level (.-shift set)

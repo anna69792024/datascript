@@ -697,7 +697,12 @@
 
        IAssociative         (-contains-key? [_ _] (throw (js/Error. "-contains-key? is not supported on FilteredDB")))
                             (-assoc [_ _ _]       (throw (js/Error. "-assoc is not supported on FilteredDB")))]
-
+      :cljr
+      [IHash                (-hash  [db]        (hash-fdb db))
+       IEquiv               (-equiv [db other]  (equiv-db db other))
+       clojure.lang.IHashEq (hasheq [db]        (hash-fdb db))
+       clojure.lang.IPersistentCollection
+                            (equiv [db o]       (-equiv db o))]
       :clj
       [Object               (hashCode [db]      (hash-fdb db))
 
