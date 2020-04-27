@@ -1,7 +1,7 @@
 (ns ^{:doc
       "A B-tree based persistent sorted set. Supports transients, custom comparators, fast iteration, efficient slices (iterator over a part of the set) and reverse slices. Almost a drop-in replacement for [[clojure.core/sorted-set]], the only difference being this one can’t store nil."
       :author "Nikita Prokopov"}
-    datascript.impl.persistent-sorted-set
+    datascript.impl.sorted-set
     (:refer-clojure :exclude
                     [iter conj disj sorted-set sorted-set-by])
     (:require [datascript.impl.sorted-set.arrays :as arrays])

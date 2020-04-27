@@ -1,6 +1,6 @@
 (ns datascript.test.impl.sorted-set
     (:require
-        [datascript.impl.persistent-sorted-set :as set]
+        [datascript.impl.sorted-set :as set]
         #?(:cljr
            [clojure.test :as t
             :refer           [is are deftest testing]]))
