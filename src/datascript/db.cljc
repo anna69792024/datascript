@@ -245,7 +245,9 @@
              clojure.lang.IHashEq (hasheq [d] (-hash d))
              clojure.lang.Associative
              (assoc [d k v] (-assoc d k v))
-             (containsKey [e k] (-contains-key? e k))])]
+             (containsKey [e k] (-contains-key? e k))
+             clojure.lang.Seqable
+             (seq [this] (-seq this))])]
       
       :clj
        [Object
@@ -682,27 +684,26 @@
 
 ;; ----------------------------------------------------------------------------
 (defrecord-updatable FilteredDB [unfiltered-db pred hash]
-  #?@(:cljs
+  #?@(:default
       [IHash                (-hash  [db]        (hash-fdb db))
        IEquiv               (-equiv [db other]  (equiv-db db other))
        ISeqable             (-seq   [db]        (seq (-datoms db :eavt [])))
        ICounted             (-count [db]        (count (-datoms db :eavt [])))
        IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
+       #?@(:cljs 
+           [IEmptyableCollection (-empty [_]         (throw (js/Error. "-empty is not supported on FilteredDB")))
+            ILookup              (-lookup ([_ _]     (throw (js/Error. "-lookup is not supported on FilteredDB")))
+                                          ([_ _ _]   (throw (js/Error. "-lookup is not supported on FilteredDB"))))
+            
+            IAssociative        
+            (-contains-key? [_ _] (throw (js/Error. "-contains-key? is not supported on FilteredDB"))) 
+            (-assoc [_ _ _]       (throw (js/Error. "-assoc is not supported on FilteredDB")))]
+           
+           :cljr
+           [clojure.lang.Seqable (seq [db]           (-seq db))
+            clojure.lang.IPersistentCollection       (equiv [db o] (-equiv db o))])
+            clojure.lang.IHashEq (hasheq [db]        (hash-fdb db))]
 
-       IEmptyableCollection (-empty [_]         (throw (js/Error. "-empty is not supported on FilteredDB")))
-
-       ILookup              (-lookup ([_ _]     (throw (js/Error. "-lookup is not supported on FilteredDB")))
-                                     ([_ _ _]   (throw (js/Error. "-lookup is not supported on FilteredDB"))))
-
-
-       IAssociative         (-contains-key? [_ _] (throw (js/Error. "-contains-key? is not supported on FilteredDB")))
-                            (-assoc [_ _ _]       (throw (js/Error. "-assoc is not supported on FilteredDB")))]
-      :cljr
-      [IHash                (-hash  [db]        (hash-fdb db))
-       IEquiv               (-equiv [db other]  (equiv-db db other))
-       clojure.lang.IHashEq (hasheq [db]        (hash-fdb db))
-       clojure.lang.IPersistentCollection
-                            (equiv [db o]       (-equiv db o))]
       :clj
       [Object               (hashCode [db]      (hash-fdb db))
 
