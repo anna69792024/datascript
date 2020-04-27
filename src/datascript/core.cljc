@@ -556,7 +556,8 @@
 
 (defn- atom? [a]
   #?(:cljs (instance? Atom a)
-     :clj  (instance? clojure.lang.IAtom a)))
+     :clj  (instance? clojure.lang.IAtom a)
+     :cljr (instance? clojure.lang.IAtom a)))
 
 
 (defn listen!

@@ -234,12 +234,18 @@
                                                "#datascript/Datom [" " " "]"
                                                opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))]
             :cljr
-            [clojure.lang.IPersistentCollection
+            [IAssociative
+             (-assoc [d k v] (assoc-datom d k v))
+             (-contains-key? [e k] (#{:e :a :v :tx :added} k)) 
+             clojure.lang.IPersistentCollection
              (equiv [this other] (-equiv this other))
              clojure.lang.ILookup
              (valAt [this key] (-lookup this key))
              (valAt [this key not-found] (-lookup this key not-found))
-             clojure.lang.IHashEq (hasheq [d] (-hash d))])]
+             clojure.lang.IHashEq (hasheq [d] (-hash d))
+             clojure.lang.Associative
+             (assoc [d k v] (-assoc d k v))
+             (containsKey [e k] (-contains-key? e k))])]
       
       :clj
        [Object
