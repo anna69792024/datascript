@@ -1,9 +1,7 @@
 (ns datascript.test.impl.sorted-set
     (:require
         [datascript.impl.sorted-set :as set]
-        #?(:cljr
-           [clojure.test :as t
-            :refer           [is are deftest testing]]))
+        #?(:cljr [clojure.test :as t :refer [is are deftest testing]]))
     #?(:cljr (:import [clojure.lang IReduce])))
 
 

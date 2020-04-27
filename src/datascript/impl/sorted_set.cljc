@@ -455,7 +455,13 @@
     
     clojure.lang.ITransientCollection
     (conj [this x] (-conj! this x))
-    (persistent [this] (-persistent! this)))
+    (persistent [this] (-persistent! this))
+    
+    clojure.lang.IObj
+    (withMeta [this meta] (-with-meta this meta))
+    
+    clojure.lang.IMeta
+    (meta [this] (-meta this)))
 
 (defn- keys-for [set path]
     (loop [level (.-shift set)
