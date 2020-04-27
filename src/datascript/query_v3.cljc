@@ -5,10 +5,12 @@
     [datascript.db :as db]
     [datascript.query :as dq]
     [datascript.lru :as lru]
-    [me.tonsky.persistent-sorted-set.arrays :as da]
+    [#?(:cljr datascript.impl.sorted-set.arrays
+        :default me.tonsky.persistent-sorted-set.arrays) :as da]
     [datascript.parser :as dp #?@(:cljs [:refer [BindColl BindIgnore BindScalar BindTuple
                                                  Constant DefaultSrc Pattern RulesVar SrcVar Variable
                                                  Not Or And Predicate PlainSymbol]])])
+    #?(:cljr (:use datascript.impl.core))
   #?(:clj
     (:import 
       [datascript.parser
@@ -16,7 +18,15 @@
         Constant DefaultSrc Pattern RulesVar SrcVar Variable
         Not Or And Predicate PlainSymbol]
       [clojure.lang     IReduceInit Counted]
-      [datascript.db  Datom])))
+      [datascript.db  Datom])
+     :cljr
+     (:import
+         [datascript.parser
+          BindColl BindIgnore BindScalar BindTuple
+          Constant DefaultSrc Pattern RulesVar SrcVar Variable
+          Not Or And Predicate PlainSymbol]
+         [clojure.lang     IReduceInit Counted]
+         [datascript.db  Datom])))
 
 (declare resolve-clauses collect-rel-xf collect-to)
 
@@ -72,7 +82,7 @@
          clojure.lang.ILookup
          (valAt [_ k] (.get m k))
          (valAt [_ k nf] (or (.get m k) nf))))
-     :cljs {}))
+     :default {}))
 
 (defn fast-arr []
   #?(:clj
@@ -99,7 +109,7 @@
              (if (< i (.size l))
                (recur (inc i) (f res (.get l i)))
                res)))))
-     :cljs
+     :default
      (let [arr (da/array)]
        (reify
          NativeColl
@@ -151,7 +161,7 @@
                (if (.hasNext iter)
                  (recur (f acc (.next iter)))
                  acc))))))
-     :cljs #{}))
+     :default #{}))
 
 ;; (defrecord Context [rels consts sources rules default-source-symbol])
 
@@ -216,17 +226,37 @@
 ;;   (->Tuple arr (hash-arr arr)))
 
 ;;; ArrayRelation
-
-(defn pr-rel [rel ^java.io.Writer w]
-  (doto w
-    (.write "#")
-    (.write #?(:clj  (.getSimpleName ^Class (class rel))
-               :cljs (str (type rel))))
-    (.write "{:symbols ")
-    (.write (pr-str (-symbols rel)))
-    (.write ", :coll " )
-    (.write (pr-str (persistent! (-fold rel #(conj! %1 (seq %2)) (transient [])))))
-    (.write "}")))
+    
+#?(:clj 
+    (defn pr-rel [rel #^java.io.Writer w]
+      (doto w
+        (.write "#")
+        (.write (.getSimpleName ^Class (class rel)))
+        (.write "{:symbols ")
+        (.write (pr-str (-symbols rel)))
+        (.write ", :coll " )
+        (.write (pr-str (persistent! (-fold rel #(conj! %1 (seq %2)) (transient [])))))
+        (.write "}")))
+   :cljs
+    (defn pr-rel [rel w]
+        (doto w
+              (.write "#")
+              (.write (str (type rel)))
+              (.write "{:symbols ")
+              (.write (pr-str (-symbols rel)))
+              (.write ", :coll " )
+              (.write (pr-str (persistent! (-fold rel #(conj! %1 (seq %2)) (transient [])))))
+              (.write "}")))
+   :cljr
+    (defn pr-rel [rel ^System.IO.StringWriter w]
+        (doto w
+              (.Write "#")
+              (.Write (str (type rel)))
+              (.Write "{:symbols ")
+              (.Write (pr-str (-symbols rel)))
+              (.Write ", :coll ")
+              (.Write (pr-str (persistent! (-fold rel #(conj! %1 (seq %2)) (transient [])))))
+              (.Write "}"))))
 
 (deftype ArrayRelation [offset-map coll]
   IRelation
@@ -256,6 +286,10 @@
    (defmethod print-method ArrayRelation [rel w]
      (pr-rel rel w)))
 
+#?(:cljr
+   (defmethod print-method ArrayRelation [rel w]
+       (pr-rel rel w)))
+    
 (defn array-rel [symbols coll]
   (->ArrayRelation (zipmap symbols (range)) coll))
 
@@ -306,6 +340,9 @@
    (defmethod print-method CollRelation [rel w]
      (pr-rel rel w)))
 
+#?(:cljr
+   (defmethod print-method CollRelation [rel w]
+       (pr-rel rel w)))
 
 ;;; ProdRelation
 
