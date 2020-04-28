@@ -564,7 +564,8 @@
 ;; ----------------------------------------------------------------------------
 
 (declare hash-db hash-fdb equiv-db empty-db resolve-datom validate-attr components->pattern indexing?)
-#?(:cljs (declare pr-db))
+#?(:cljs (declare pr-db)
+   :cljr (declare pr-db))
 
 (defn db-transient [db]
   (-> db
@@ -586,7 +587,7 @@
        IReversible          (-rseq  [db]        (-rseq (.-eavt db)))
        ICounted             (-count [db]        (count (.-eavt db)))
        IEmptyableCollection (-empty [db]        (with-meta (empty-db (.-schema db)) (meta db)))
-       IPrintWithWriter     (-pr-writer [db w opts] #_(pr-db db w opts))
+       IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
        IEditableCollection  (-as-transient [db] (db-transient db))
        ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
                             (-persistent! [db] (db-persistent! db))]
@@ -598,7 +599,7 @@
        IReversible          (-rseq  [db]        (-rseq (.-eavt db)))
        ICounted             (-count [db]        (count (.-eavt db)))
        IEmptyableCollection (-empty [db]        (with-meta (empty-db (.-schema db)) (meta db)))
-       IPrintWithWriter     (-pr-writer [db w opts] #_(pr-db db w opts))
+       IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
        IEditableCollection  (-as-transient [db] (db-transient db))
        ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
        (-persistent! [db] (db-persistent! db))
@@ -1014,8 +1015,7 @@
         :else
           (-> (-datoms db :avet eid) first :e)))
     
-;    #?@(:cljs [(array? eid) (recur db (array-seq eid))]
-;        :cljr [(array? eid) (recur db (array-seq eid))])
+    #?@(:cljs [(array? eid) (recur db (array-seq eid))])
     
     (keyword? eid)
     (-> (-datoms db :avet [:db/ident eid]) first :e)
