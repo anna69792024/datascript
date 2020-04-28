@@ -247,7 +247,10 @@
              (assoc [d k v] (-assoc d k v))
              (containsKey [e k] (-contains-key? e k))
              clojure.lang.Seqable
-             (seq [this] (-seq this))])]
+             (seq [this] (-seq this))
+             clojure.lang.Indexed
+             (nth [this i] (-nth this i))
+             (nth [this i not-found] (-nth this i not-found))])]
       
       :clj
        [Object
