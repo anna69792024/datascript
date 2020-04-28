@@ -17,8 +17,9 @@
   (is (thrown-msg? "Bad attribute specification for :profile: {:db/isComponent true} should also have {:db/valueType :db.type/ref}"
         (d/empty-db {:profile {:db/isComponent true}})))
   (is (thrown-msg? 
-              #?(:cljr    "Bad attribute specification for {:profile {:db/isComponent \"aaa\"}}, expected one of #{false true}" 
-                 :default "Bad attribute specification for {:profile {:db/isComponent \"aaa\"}}, expected one of #{true false}")
+              #?(:cljr "Bad attribute specification for {:profile {:db/isComponent \"aaa\"}}, expected one of #{false true}" 
+                 :clj "Bad attribute specification for {:profile {:db/isComponent \"aaa\"}}, expected one of #{true false}"
+                 :cljs "Bad attribute specification for {:profile {:db/isComponent \"aaa\"}}, expected one of #{true false}")
         (d/empty-db {:profile {:db/isComponent "aaa" :db/valueType :db.type/ref}})))
   
   (let [db (d/db-with

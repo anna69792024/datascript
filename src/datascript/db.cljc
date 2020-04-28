@@ -4,8 +4,10 @@
     [clojure.walk]
     [clojure.data]
     [#?(:clj me.tonsky.persistent-sorted-set
+        :cljs me.tonsky.persistent-sorted-set
         :cljr datascript.impl.sorted-set) :as set]
     [#?(:clj me.tonsky.persistent-sorted-set.arrays
+        :cljs me.tonsky.persistent-sorted-set.arrays
         :cljr datascript.impl.sorted-set.arrays) :as arrays])
   #?(:cljs (:require-macros [datascript.db :refer [case-tree combine-cmp raise defrecord-updatable cond+]]))
     #?(:cljr (:use [datascript.impl.core]))
@@ -44,9 +46,8 @@
           :cljr [^Boolean seqable?])
   [x]
   (and (not (string? x))
-  #?(:default (or (#?(:cljs cljs.core/seqable?
-                      :cljr clojure.core/seqable?) x)
-               (arrays/array? x))
+  #?(:cljs (or cljs.core/seqable? x)
+     :cljr (or clojure.core/seqable? x)
      :clj  (or (seq? x)
                (instance? clojure.lang.Seqable x)
                (nil? x)
@@ -119,17 +120,7 @@
           (vector? (second method))
           (let [sym (first method)
                 ns  (or (some->> sym resolve meta :ns str) "clojure.core")]
-            [(symbol ns (name sym)) (-> method second count)])))
-   :cljr
-   (defn- get-sig [method]
-       ;; expects something like '(method-symbol [arg arg arg] ...)
-       ;; if the thing matches, returns [fully-qualified-symbol arity], otherwise nil
-       (and (sequential? method)
-            (symbol? (first method))
-            (vector? (second method))
-            (let [sym (first method)
-                  ns  (or (some->> sym resolve meta :ns str) "clojure.core")]
-                [(symbol ns (name sym)) (-> method second count)]))))
+            [(symbol ns (name sym)) (-> method second count)]))))
 
 #?(:clj
    (defn- dedupe-interfaces [deftype-form]
@@ -205,52 +196,66 @@
   (datom-tx [d] (if (pos? tx) tx (- tx)))
   (datom-added [d] (pos? tx))
 
-  #?@(:default
-       [IHash
-        (-hash [d] (if (zero? _hash)
-                     (set! _hash (hash-datom d))
-                     _hash))
-        IEquiv
-        (-equiv [d o] (and (instance? Datom o) (equiv-datom d o)))
+  #?@(:cljs
+      [ISeqable
+       (-seq [d] (seq-datom d))
+       IEquiv
+       (-equiv [d o] (and (instance? Datom o) (equiv-datom d o)))
 
-        ISeqable
-        (-seq [d] (seq-datom d))
+       IHash
+       (-hash [d] (if (zero? _hash)
+                    (set! _hash (hash-datom d))
+                    _hash))
+       IIndexed
+       (-nth [this i] (nth-datom this i))
+       (-nth [this i not-found] (nth-datom this i not-found))
 
-        ILookup
-        (-lookup [d k] (val-at-datom d k nil))
-        (-lookup [d k nf] (val-at-datom d k nf))
+       ILookup
+       (-lookup [d k] (val-at-datom d k nil))
+       (-lookup [d k nf] (val-at-datom d k nf))
 
-        IIndexed
-        (-nth [this i] (nth-datom this i))
-        (-nth [this i not-found] (nth-datom this i not-found))
-        
-        IAssociative
-        (-assoc [d k v] (assoc-datom d k v))
+       IAssociative
+       (-assoc [d k v] (assoc-datom d k v))
+       IPrintWithWriter
+       (-pr-writer [d writer opts]
+                   (pr-sequential-writer writer pr-writer
+                                         "#datascript/Datom [" " " "]"
+                                         opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))]
+      
+      :cljr
+      [ISeqable
+       (-seq [d] (seq-datom d))
+       IEquiv
+       (-equiv [d o] (and (instance? Datom o) (equiv-datom d o)))
 
-        #?@(:cljs
-            [IPrintWithWriter
-             (-pr-writer [d writer opts]
-                         (pr-sequential-writer writer pr-writer
-                                               "#datascript/Datom [" " " "]"
-                                               opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))]
-            :cljr
-            [IAssociative
-             (-assoc [d k v] (assoc-datom d k v))
-             (-contains-key? [e k] (#{:e :a :v :tx :added} k)) 
-             clojure.lang.IPersistentCollection
-             (equiv [this other] (-equiv this other))
-             clojure.lang.ILookup
-             (valAt [this key] (-lookup this key))
-             (valAt [this key not-found] (-lookup this key not-found))
-             clojure.lang.IHashEq (hasheq [d] (-hash d))
-             clojure.lang.Associative
-             (assoc [d k v] (-assoc d k v))
-             (containsKey [e k] (-contains-key? e k))
-             clojure.lang.Seqable
-             (seq [this] (-seq this))
-             clojure.lang.Indexed
-             (nth [this i] (-nth this i))
-             (nth [this i not-found] (-nth this i not-found))])]
+       IHash
+       (-hash [d] (if (zero? _hash)
+                    (set! _hash (hash-datom d))
+                    _hash))
+       IIndexed
+       (-nth [this i] (nth-datom this i))
+       (-nth [this i not-found] (nth-datom this i not-found))
+
+       ILookup
+       (-lookup [d k] (val-at-datom d k nil))
+       (-lookup [d k nf] (val-at-datom d k nf))
+       IAssociative
+       (-assoc [d k v] (assoc-datom d k v))
+       (-contains-key? [e k] (#{:e :a :v :tx :added} k))
+       clojure.lang.IPersistentCollection
+       (equiv [this other] (-equiv this other))
+       clojure.lang.ILookup
+       (valAt [this key] (-lookup this key))
+       (valAt [this key not-found] (-lookup this key not-found))
+       clojure.lang.IHashEq (hasheq [d] (-hash d))
+       clojure.lang.Associative
+       (assoc [d k v] (-assoc d k v))
+       (containsKey [e k] (-contains-key? e k))
+       clojure.lang.Seqable
+       (seq [this] (-seq this))
+       clojure.lang.Indexed
+       (nth [this i] (-nth this i))
+       (nth [this i not-found] (-nth this i not-found))]
       
       :clj
        [Object
@@ -574,7 +579,7 @@
     (update :avet persistent!)))
 
 (defrecord-updatable DB [schema eavt aevt avet max-eid max-tx rschema hash]
-  #?@(:default
+  #?@(:cljs
       [IHash                (-hash  [db]        (hash-db db))
        IEquiv               (-equiv [db other]  (equiv-db db other))
        ISeqable             (-seq   [db]        (-seq  (.-eavt db)))
@@ -584,20 +589,33 @@
        IPrintWithWriter     (-pr-writer [db w opts] #_(pr-db db w opts))
        IEditableCollection  (-as-transient [db] (db-transient db))
        ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
-                            (-persistent! [db] (db-persistent! db))
-       #?@(:cljr [clojure.lang.IHashEq (hasheq [db] (-hash db))
-                  clojure.lang.IEditableCollection (asTransient [db] (-as-transient db)) 
-                  clojure.lang.ITransientCollection
-                  (conj [db key] (-conj! db key)) 
-                  (persistent [db] (-persistent! db)) 
-                  
-                  clojure.lang.Counted (clojure.lang.Counted.count [db] (-count db)) 
-                  clojure.lang.IPersistentCollection 
-                  (empty [db] (-empty db)) 
-                  (equiv [db other] (-equiv db other))
-            
-                  clojure.lang.Seqable (seq [db] (-seq db))])]
+                            (-persistent! [db] (db-persistent! db))]
+      
+      :cljr
+      [IHash                (-hash  [db]        (hash-db db))
+       IEquiv               (-equiv [db other]  (equiv-db db other))
+       ISeqable             (-seq   [db]        (-seq  (.-eavt db)))
+       IReversible          (-rseq  [db]        (-rseq (.-eavt db)))
+       ICounted             (-count [db]        (count (.-eavt db)))
+       IEmptyableCollection (-empty [db]        (with-meta (empty-db (.-schema db)) (meta db)))
+       IPrintWithWriter     (-pr-writer [db w opts] #_(pr-db db w opts))
+       IEditableCollection  (-as-transient [db] (db-transient db))
+       ITransientCollection (-conj! [db key] (throw (ex-info "datascript.DB/conj! is not supported" {})))
+       (-persistent! [db] (db-persistent! db))
 
+       clojure.lang.IHashEq (hasheq [db] (-hash db))
+       clojure.lang.IEditableCollection (asTransient [db] (-as-transient db))
+       clojure.lang.ITransientCollection
+       (conj [db key] (-conj! db key))
+       (persistent [db] (-persistent! db))
+
+       clojure.lang.Counted (clojure.lang.Counted.count [db] (-count db))
+       clojure.lang.IPersistentCollection
+       (empty [db] (-empty db))
+       (equiv [db other] (-equiv db other))
+
+       clojure.lang.Seqable (seq [db] (-seq db))]
+       
       :clj
       [Object               (hashCode [db]      (hash-db db))
        clojure.lang.IHashEq (hasheq [db]        (hash-db db))
@@ -687,26 +705,31 @@
 
 ;; ----------------------------------------------------------------------------
 (defrecord-updatable FilteredDB [unfiltered-db pred hash]
-  #?@(:default
+  #?@(:cljs
       [IHash                (-hash  [db]        (hash-fdb db))
        IEquiv               (-equiv [db other]  (equiv-db db other))
        ISeqable             (-seq   [db]        (seq (-datoms db :eavt [])))
        ICounted             (-count [db]        (count (-datoms db :eavt [])))
-       #?@(:cljs 
-           [IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
-            IEmptyableCollection (-empty [_]         (throw (js/Error. "-empty is not supported on FilteredDB")))
-            ILookup              (-lookup ([_ _]     (throw (js/Error. "-lookup is not supported on FilteredDB")))
-                                          ([_ _ _]   (throw (js/Error. "-lookup is not supported on FilteredDB"))))
-            
-            IAssociative        
-            (-contains-key? [_ _] (throw (js/Error. "-contains-key? is not supported on FilteredDB"))) 
-            (-assoc [_ _ _]       (throw (js/Error. "-assoc is not supported on FilteredDB")))]
-           
-           :cljr
-           [clojure.lang.Seqable (seq [db]           (-seq db))
-            clojure.lang.IHashEq (hasheq [db]        (-hash db))
-            clojure.lang.IPersistentCollection       (equiv [db o] (-equiv db o))])]
 
+       IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
+       IEmptyableCollection (-empty [_]         (throw (js/Error. "-empty is not supported on FilteredDB")))
+       ILookup              (-lookup ([_ _]     (throw (js/Error. "-lookup is not supported on FilteredDB")))
+                                     ([_ _ _]   (throw (js/Error. "-lookup is not supported on FilteredDB"))))
+
+       IAssociative
+       (-contains-key? [_ _] (throw (js/Error. "-contains-key? is not supported on FilteredDB")))
+       (-assoc [_ _ _]       (throw (js/Error. "-assoc is not supported on FilteredDB")))]
+      
+      :cljr
+      [IHash                (-hash  [db]        (hash-fdb db))
+       IEquiv               (-equiv [db other]  (equiv-db db other))
+       ISeqable             (-seq   [db]        (seq (-datoms db :eavt [])))
+       ICounted             (-count [db]        (count (-datoms db :eavt [])))
+       
+       clojure.lang.Seqable (seq [db]           (-seq db))
+       clojure.lang.IHashEq (hasheq [db]        (-hash db))
+       clojure.lang.IPersistentCollection       (equiv [db o] (-equiv db o))]
+       
       :clj
       [Object               (hashCode [db]      (hash-fdb db))
 

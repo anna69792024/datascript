@@ -47,10 +47,10 @@
 
 (deftest test-parse-bad-limit
   (is
-   (thrown? #?(:cljr Exception :default Throwable) (dpp/parse-pull '[(limit :foo :bar)]))))
+   (thrown? #?(:cljr Exception :clj Throwable :cljs Throwable) (dpp/parse-pull '[(limit :foo :bar)]))))
 
 (deftest test-parse-bad-default
   (is
-   (thrown? #?(:cljr Exception :default Throwable) (dpp/parse-pull '[(default 1 :bar)]))))
+   (thrown? #?(:cljr Exception :clj Throwable :cljs Throwable) (dpp/parse-pull '[(default 1 :bar)]))))
 
 #_(t/test-ns 'datascript.test.pull-parser)

@@ -1,8 +1,9 @@
 (ns datascript.test.issues
   (:require
    [datascript.core :as ds]
-   #?(:cljs    [cljs.test    :as t :refer-macros [is are deftest testing]]
-      :default [clojure.test :as t :refer        [is are deftest testing]])))
+   #?(:cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
+      :clj  [clojure.test :as t :refer        [is are deftest testing]]
+      :cljr [clojure.test :as t :refer        [is are deftest testing]])))
 
 
 (deftest ^{:doc "CLJS `apply` + `vector` will hold onto mutable array of arguments directly"}

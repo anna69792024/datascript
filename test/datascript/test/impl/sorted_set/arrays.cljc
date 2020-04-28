@@ -4,6 +4,9 @@
          :refer           [is are deftest testing]]
         [datascript.impl.sorted-set.arrays :as arrays]))
 
+#?(:cljr
+   (do
+
 (deftest arrays-all-tests
     (testing "read only test"
              (is
@@ -41,3 +44,4 @@
              ;; asort test
              (let [arr      (arrays/into-array [11 12 13])]
                  (is (= [13 12 11] (arrays/asort arr >))))))
+))
