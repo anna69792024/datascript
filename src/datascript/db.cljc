@@ -689,9 +689,9 @@
        IEquiv               (-equiv [db other]  (equiv-db db other))
        ISeqable             (-seq   [db]        (seq (-datoms db :eavt [])))
        ICounted             (-count [db]        (count (-datoms db :eavt [])))
-       IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
        #?@(:cljs 
-           [IEmptyableCollection (-empty [_]         (throw (js/Error. "-empty is not supported on FilteredDB")))
+           [IPrintWithWriter     (-pr-writer [db w opts] (pr-db db w opts))
+            IEmptyableCollection (-empty [_]         (throw (js/Error. "-empty is not supported on FilteredDB")))
             ILookup              (-lookup ([_ _]     (throw (js/Error. "-lookup is not supported on FilteredDB")))
                                           ([_ _ _]   (throw (js/Error. "-lookup is not supported on FilteredDB"))))
             
