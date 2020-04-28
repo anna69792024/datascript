@@ -701,7 +701,7 @@
            
            :cljr
            [clojure.lang.Seqable (seq [db]           (-seq db))
-            clojure.lang.IHashEq (hasheq [db]        (hash-fdb db))
+            clojure.lang.IHashEq (hasheq [db]        (-hash db))
             clojure.lang.IPersistentCollection       (equiv [db o] (-equiv db o))])]
 
       :clj
