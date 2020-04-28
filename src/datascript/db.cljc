@@ -46,8 +46,8 @@
           :cljr [^Boolean seqable?])
   [x]
   (and (not (string? x))
-  #?(:cljs (or cljs.core/seqable? x)
-     :cljr (or clojure.core/seqable? x)
+  #?(:cljs (or (cljs.core/seqable? x) (arrays/array? x))
+     :cljr (or (clojure.core/seqable? x) (arrays/array? x))
      :clj  (or (seq? x)
                (instance? clojure.lang.Seqable x)
                (nil? x)
