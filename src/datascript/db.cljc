@@ -4,7 +4,7 @@
     [clojure.walk]
     [clojure.data]
     [#?(:clj me.tonsky.persistent-sorted-set
-        :cljr datascript.impl.persistent-sorted-set) :as set]
+        :cljr datascript.impl.sorted-set) :as set]
     [#?(:clj me.tonsky.persistent-sorted-set.arrays
         :cljr datascript.impl.sorted-set.arrays) :as arrays])
   #?(:cljs (:require-macros [datascript.db :refer [case-tree combine-cmp raise defrecord-updatable cond+]]))
