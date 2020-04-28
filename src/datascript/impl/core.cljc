@@ -1,6 +1,9 @@
 (ns datascript.impl.core
     "Protocols and functions copyed from cljs.core")
 
+#?(:cljr 
+   (do
+       
 (defprotocol ICloneableProtocol
     "Protocol for cloning a value."
     (^clj -clone [value]
@@ -249,3 +252,4 @@
                                     (-write writer sep)
                                     (-write writer (or (:more-marker opts) "...")))))))
                 (-write writer end)))))
+))

@@ -6,7 +6,8 @@
     [datascript.query :as dq]
     [datascript.lru :as lru]
     [#?(:cljr datascript.impl.sorted-set.arrays
-        :default me.tonsky.persistent-sorted-set.arrays) :as da]
+        :clj me.tonsky.persistent-sorted-set.arrays
+        :cljs me.tonsky.persistent-sorted-set.arrays) :as da]
     [datascript.parser :as dp #?@(:cljs [:refer [BindColl BindIgnore BindScalar BindTuple
                                                  Constant DefaultSrc Pattern RulesVar SrcVar Variable
                                                  Not Or And Predicate PlainSymbol]])])
@@ -82,7 +83,8 @@
          clojure.lang.ILookup
          (valAt [_ k] (.get m k))
          (valAt [_ k nf] (or (.get m k) nf))))
-     :default {}))
+     :cljs {}
+     :cljr {}))
 
 (defn fast-arr []
   #?(:clj
@@ -109,7 +111,7 @@
              (if (< i (.size l))
                (recur (inc i) (f res (.get l i)))
                res)))))
-     :default
+     :cljs
      (let [arr (da/array)]
        (reify
          NativeColl
@@ -125,6 +127,29 @@
          ICounted
          (-count [_] (alength arr))
          
+         IReduce
+         (-reduce [_ f s]
+           (loop [i   0
+                  res s]
+             (if (< i (alength arr))
+               (recur (inc i) (f res (aget arr i)))
+               res)))))
+     :cljr
+     (let [arr (da/array)]
+       (reify
+         NativeColl
+         (-native-coll [_] arr)
+
+         IEditableCollection
+         (-as-transient [this] this)
+
+         ITransientCollection
+         (-conj! [this v] (.push arr v) this)
+         (-persistent! [this] this)
+
+         ICounted
+         (-count [_] (alength arr))
+
          IReduce
          (-reduce [_ f s]
            (loop [i   0
@@ -161,7 +186,8 @@
                (if (.hasNext iter)
                  (recur (f acc (.next iter)))
                  acc))))))
-     :default #{}))
+     :cljs #{}
+     :cljr #{}))
 
 ;; (defrecord Context [rels consts sources rules default-source-symbol])
 

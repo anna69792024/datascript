@@ -19,7 +19,7 @@
                                              (read-string %))]
         :cljr ["clojure.edn/read-string"  #(clojure.edn/read-string {:readers d/data-readers} %)
                "clojure.core/read-string" #(binding [*data-readers* (merge *data-readers* d/data-readers)]
-                                            (read-string %))]) })
+                                            (read-string %))])})
 
 (deftest test-pr-read
   (doseq [[r read-fn] readers]

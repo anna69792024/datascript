@@ -481,7 +481,7 @@
 (defn- context-resolve-val [context sym]
   (when-some [rel (rel-with-attr context sym)]
     (when-some [tuple (first (:tuples rel))]
-      (#?(:default da/aget :clj get :cljr get) tuple ((:attrs rel) sym)))))
+      (#?(:cljs da/aget :clj get :cljr get) tuple ((:attrs rel) sym)))))
 
 (defn- rel-contains-attrs? [rel attrs]
   (some #(contains? (:attrs rel) %) attrs))
@@ -527,8 +527,10 @@
 
 (defn- resolve-sym [sym]
   #?(:cljs nil
-     :default (when (namespace sym)
-            (when-some [v (resolve sym)] @v))))
+     :clj (when (namespace sym)
+            (when-some [v (resolve sym)] @v))
+     :cljr (when (namespace sym)
+             (when-some [v (resolve sym)] @v))))
 
 (defn filter-by-pred [context clause]
   (let [[[f & args]] clause

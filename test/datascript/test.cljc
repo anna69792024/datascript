@@ -1,7 +1,8 @@
 (ns datascript.test
   (:require
     #?(:cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
-       :clj  [clojure.test :as t :refer        [is are deftest testing]])
+       :clj  [clojure.test :as t :refer        [is are deftest testing]]
+       :cljr [clojure.test :as t :refer        [is are deftest testing]])
     #?(:clj [clojure.java.shell :as sh])
     datascript.test.core
    
@@ -43,6 +44,11 @@
 
 (defn ^:export test-cljs []
   (datascript.test.core/wrap-res #(t/run-all-tests #"datascript\..*")))
+
+(defn ^:export test-cljr []
+    "The cljr platform requires the Acradia environment, 
+    and the native clojure-clr has not been tested."
+    (t/run-all-tests #"datascript\..*"))
 
 #?(:clj
 (defn test-node [& args]

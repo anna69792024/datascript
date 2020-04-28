@@ -1,13 +1,15 @@
 (ns datascript.test.impl.sorted-set
-    (:require
-        [datascript.impl.sorted-set :as set]
-        #?(:cljr [clojure.test :as t :refer [is are deftest testing]]))
-    #?(:cljr (:import [clojure.lang IReduce])))
+  (:require [datascript.impl.sorted-set :as set]
+            [clojure.test :as t :refer [is are deftest testing]])
+  #?(:cljr (:import [clojure.lang IReduce])))
 
 
 #?(:cljr (set! *warn-on-reflection* true))
 
 
+#?(:cljr 
+   (do
+     
 (def iters 1)
 
 
@@ -407,3 +409,4 @@
           )))
 #_(println "[ OK ] btset slice checked"))
 
+))

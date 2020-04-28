@@ -2,8 +2,7 @@
       "A B-tree based persistent sorted set. Supports transients, custom comparators, fast iteration, efficient slices (iterator over a part of the set) and reverse slices. Almost a drop-in replacement for [[clojure.core/sorted-set]], the only difference being this one can’t store nil."
       :author "Nikita Prokopov"}
     datascript.impl.sorted-set
-    (:refer-clojure :exclude
-                    [iter conj disj sorted-set sorted-set-by])
+    (:refer-clojure :exclude [iter conj disj sorted-set sorted-set-by])
     (:require [datascript.impl.sorted-set.arrays :as arrays])
     #?(:cljr (:use [datascript.impl.core])))
 
@@ -37,7 +36,8 @@
 ;           idx       :: Cached idx in keys array
 ; Keys and idx are cached for fast iteration inside a leaf"
 
-
+#?(:cljr
+   (do
 (def ^:const min-len 16)
 (def ^:const max-len 32)
 (def ^:private ^:const avg-len (arrays/half (+ max-len min-len)))
@@ -1026,4 +1026,5 @@
 (defn sorted-set
     ([] (sorted-set-by compare))
     ([& keys] (from-sequential compare keys)))
-    
+
+))
