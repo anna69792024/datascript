@@ -1,7 +1,8 @@
 (ns ^:no-doc datascript.impl.entity
   (:refer-clojure :exclude [keys get])
-  (:require [#?(:cljs cljs.core :clj clojure.core) :as c]
-            [datascript.db :as db]))
+  (:require [#?(:cljs cljs.core :clj clojure.core :cljr clojure.core) :as c]
+            [datascript.db :as db])
+    #?(:cljr (:use [datascript.impl.core])))
 
 (declare entity ->Entity equiv-entity lookup-entity touch)
 
@@ -46,7 +47,38 @@
 
 (deftype Entity [db eid touched cache]
   #?@(:cljs
-      [Object
+      [IEquiv
+       (-equiv [this o] (equiv-entity this o))
+
+       IHash
+       (-hash [_]
+              (hash eid)) ;; db?
+
+       ISeqable
+       (-seq [this]
+             (touch this)
+             (seq @cache))
+
+       ICounted
+       (-count [this]
+               (touch this)
+               (count @cache))
+
+       ILookup
+       (-lookup [this attr]           (lookup-entity this attr nil))
+       (-lookup [this attr not-found] (lookup-entity this attr not-found))
+
+       IAssociative
+       (-contains-key? [this k]
+                       (not= ::nf (lookup-entity this k ::nf)))
+
+       IFn
+       (-invoke [this k]
+                (lookup-entity this k))
+       (-invoke [this k not-found]
+                (lookup-entity this k not-found))
+
+       Object
        (toString [this]
                  (pr-str* this))
        (equiv [this other]
@@ -68,7 +100,7 @@
                 (-> (-lookup-backwards db eid (db/reverse-ref attr) nil)
                     multival->js)
                 (cond-> (lookup-entity this attr)
-                  (db/multival? db attr) multival->js))))
+                        (db/multival? db attr) multival->js))))
        (forEach [this f]
                 (doseq [[a v] (js-seq this)]
                   (f v a this)))
@@ -80,6 +112,14 @@
        (key_set   [this] (to-array (c/keys this)))
        (entry_set [this] (to-array (map to-array (js-seq this))))
        (value_set [this] (to-array (map second (js-seq this))))
+
+       IPrintWithWriter
+       (-pr-writer [_ writer opts]
+                   (-pr-writer (assoc @cache :db/id eid) writer opts))]
+      
+      :cljr
+      [Object
+       (ToString [this] )
 
        IEquiv
        (-equiv [this o] (equiv-entity this o))
@@ -112,10 +152,33 @@
        (-invoke [this k not-found]
                 (lookup-entity this k not-found))
 
+       clojure.lang.ILookup
+       (valAt [this attr] (-lookup this attr))
+       (valAt [this attr not-found] (-lookup this attr not-found))
+
+       clojure.lang.IFn
+       (invoke [this k] (-lookup this k))
+       (invoke [this k not-found] (-lookup this k not-found))
+
+       clojure.lang.Associative
+       (containsKey [this k] (-contains-key? this k))
+
+       clojure.lang.Seqable
+       (seq [this] (-seq this))
+
+       clojure.lang.IPersistentCollection
+       (equiv [this other] (-equiv this other))
+
        IPrintWithWriter
        (-pr-writer [_ writer opts]
-                   (-pr-writer (assoc @cache :db/id eid) writer opts))]
+                   (.Write ^System.IO.StringWriter writer (str (assoc @cache :db/id eid))))
 
+       Object
+       (ToString [e] (pr-str e))
+
+       clojure.lang.IHashEq
+       (hasheq [this] (-hash this))] 
+       
       :clj
       [Object
        (toString [e]      (pr-str (assoc @cache :db/id eid)))
@@ -149,6 +212,9 @@
 #?(:clj
    (defmethod print-method Entity [e, ^java.io.Writer w]
      (.write w (str e))))
+#?(:cljr
+   (defmethod print-method Entity [e, ^System.IO.StringWriter w]
+       (-pr-writer e w nil)))
 
 (defn- equiv-entity [^Entity this that]
   (and

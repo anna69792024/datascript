@@ -1,7 +1,8 @@
 (ns datascript.test.pull-parser
   (:require
     #?(:cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
-       :clj  [clojure.test :as t :refer        [is are deftest testing]])
+       :clj  [clojure.test :as t :refer        [is are deftest testing]]
+       :cljr [clojure.test :as t :refer        [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.pull-parser :as dpp]
@@ -46,10 +47,10 @@
 
 (deftest test-parse-bad-limit
   (is
-   (thrown? Throwable (dpp/parse-pull '[(limit :foo :bar)]))))
+   (thrown? #?(:cljr Exception :clj Throwable :cljs Throwable) (dpp/parse-pull '[(limit :foo :bar)]))))
 
 (deftest test-parse-bad-default
   (is
-   (thrown? Throwable (dpp/parse-pull '[(default 1 :bar)]))))
+   (thrown? #?(:cljr Exception :clj Throwable :cljs Throwable) (dpp/parse-pull '[(default 1 :bar)]))))
 
 #_(t/test-ns 'datascript.test.pull-parser)

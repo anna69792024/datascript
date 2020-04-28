@@ -1,13 +1,13 @@
 (ns datascript.test.query
   (:require
     #?(:cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
-       :clj  [clojure.test :as t :refer        [is are deftest testing]])
+       :clj  [clojure.test :as t :refer        [is are deftest testing]]
+       :cljr [clojure.test :as t :refer        [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.test.core :as tdc])
-    #?(:clj
-      (:import [clojure.lang ExceptionInfo])))
-
+    #?(:clj (:import [clojure.lang ExceptionInfo])
+       :cljr (:import [clojure.lang ExceptionInfo])))
 
 
 (deftest test-joins

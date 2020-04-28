@@ -2,10 +2,13 @@
   (:require
     [clojure.data]
     #?(:cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
-       :clj  [clojure.test :as t :refer        [is are deftest testing]])
+       :clj  [clojure.test :as t :refer        [is are deftest testing]]
+       :cljr [clojure.test :as t :refer        [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db #?@(:cljs [:refer-macros [defrecord-updatable]]
-                                      :clj  [:refer [defrecord-updatable]])]))
+                              :clj  [:refer [defrecord-updatable]]
+                              :cljr [:refer [defrecord-updatable]])])
+    #?(:cljr (:use [datascript.impl.core])))
 
 ;;
 ;; verify that defrecord-updatable works with compiler/core macro configuration
@@ -14,12 +17,12 @@
 ;;
 (defrecord-updatable HashBeef [x]
   #?@(:cljs [IHash                (-hash  [hb] 0xBEEF)]
-      :clj  [clojure.lang.IHashEq (hasheq [hb] 0xBEEF)]))
+      :clj  [clojure.lang.IHashEq (hasheq [hb] 0xBEEF)]
+      :cljr [clojure.lang.IHashEq (hasheq [hb] 0xBEEF)]))
 
 (deftest test-defrecord-updatable
-  (is (= 0xBEEF (-> (map->HashBeef {:x :ignored}) hash))))
-
-
+  (is (= 0xBEEF 
+         (hash (map->HashBeef {:x :ignored})))))
 
 ;; whitebox test to confirm that hash cache caches
 (deftest test-db-hash-cache
@@ -30,7 +33,8 @@
 
 (defn- now []
   #?(:clj  (System/currentTimeMillis)
-     :cljs (.getTime (js/Date.))))
+     :cljs (.getTime (js/Date.))
+     :cljr (long (.TotalMilliseconds (.Subtract DateTime/Now (DateTime. 1970 1 1 0 0 0 0 DateTimeKind/Utc))))))
 
 (deftest test-uuid
   (let [now-ms (loop []

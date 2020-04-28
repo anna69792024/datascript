@@ -5,7 +5,11 @@
     #?(:clj
       (:import
         [datascript.db Datom]
-        [datascript.pull_parser PullSpec])))
+        [datascript.pull_parser PullSpec])
+       :cljr
+      (:import
+          [datascript.db Datom]
+          [datascript.pull_parser PullSpec])))
 
 (defn- into!
   [transient-coll items]
