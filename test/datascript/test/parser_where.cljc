@@ -7,8 +7,8 @@
     [datascript.db :as db]
     [datascript.parser :as dp]
     [datascript.test.core :as tdc])
-    #?(:clj
-      (:import [clojure.lang ExceptionInfo])))
+    #?(:clj (:import [clojure.lang ExceptionInfo])
+       :cljr (:import [clojure.lang ExceptionInfo])))
 
 
 
