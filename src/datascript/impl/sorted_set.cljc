@@ -435,7 +435,7 @@
     (hasheq [db] (-hash db))
 
     clojure.lang.IPersistentCollection
-    (count [this] (-count this))
+    (clojure.lang.IPersistentCollection.count [this] (-count this))
     (cons [this x] (-conj this x))
     (equiv [this x] (-equiv this x))
 
